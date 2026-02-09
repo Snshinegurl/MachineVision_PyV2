@@ -471,4 +471,69 @@ def get_app_styles():
             border: none;
             background: none;
         }
+
+        /* Crop Button Styles */
+        #crop-btn {
+            background-color: #F59E0B;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+
+        #crop-btn:hover:enabled {
+            background-color: #D97706;
+            transform: translateY(-2px);
+        }
+
+        #crop-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #apply-crop-btn {
+            background-color: #10B981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+
+        #apply-crop-btn:hover:enabled {
+            background-color: #0DA271;
+            transform: translateY(-2px);
+        }
+
+        #apply-crop-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #cancel-crop-btn {
+            background-color: #EF4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        #cancel-crop-btn:hover:enabled {
+            background-color: #DC2626;
+            transform: translateY(-2px);
+        }
+
+        #crop-confirmation {
+            background-color: rgba(31, 41, 55, 0.8);
+            border-radius: 8px;
+            margin: 10px 20px;
+            border: 1px solid #374151;
+        }
     """

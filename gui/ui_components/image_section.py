@@ -9,7 +9,7 @@ def create_image_processing_section(app_instance):
     layout.setSpacing(24)
     layout.setContentsMargins(0, 0, 0, 0)
     
-    original_card, original_placeholder, original_image_label = create_image_card(
+    original_card, original_placeholder, original_image_label, crop_btn = create_image_card(
         "Original Image", "file-upload", True, app_instance
     )
     processed_card, processed_placeholder, processed_image_label, processed_status, save_btn = create_image_card(
@@ -22,7 +22,7 @@ def create_image_processing_section(app_instance):
     components = (
         original_placeholder, original_image_label,
         processed_placeholder, processed_image_label,
-        processed_status, save_btn
+        processed_status, save_btn, crop_btn
     )
     return widget, components
 
@@ -34,12 +34,12 @@ def create_image_card(title, icon, is_original, app_instance):
     layout.setContentsMargins(0, 0, 0, 0)
     
     if is_original:
-        header = create_card_header(title, icon, is_original, app_instance)
+        header, crop_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
         
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
-        return widget, placeholder, image_label
+        return widget, placeholder, image_label, crop_btn
     else:
         header, processed_status, save_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
@@ -57,10 +57,16 @@ def create_card_header(title, icon, is_original, app_instance):
     title_widget = create_card_title(title, icon)
     
     if is_original:
+        # Create buttons - CROP on LEFT, UPLOAD on RIGHT
+        crop_btn = create_crop_button(app_instance)
         upload_btn = create_upload_button(app_instance)
+        
+        # Add widgets: title on left, then crop, then upload
         header_layout.addWidget(title_widget)
+        header_layout.addStretch()  # Push buttons to the right
+        header_layout.addWidget(crop_btn)
         header_layout.addWidget(upload_btn)
-        return header
+        return header, crop_btn
     else:
         right_widget, processed_status, save_btn = create_processed_header_right(app_instance)
         header_layout.addWidget(title_widget)
@@ -101,7 +107,25 @@ def create_card_title(title, icon):
     
     return title_widget
 
+def create_crop_button(app_instance):
+    """Create the crop button for original image"""
+    crop_btn = QPushButton(" Crop")
+    crop_btn.setObjectName("crop-btn")
+    crop_btn.setCursor(Qt.PointingHandCursor)
+    crop_btn.clicked.connect(app_instance.start_cropping)
+    crop_btn.setEnabled(False)
+    
+    try:
+        crop_icon = qta.icon('fa5s.crop', color='white')
+        crop_btn.setIcon(crop_icon)
+        crop_btn.setIconSize(QSize(14, 14))
+    except:
+        crop_btn.setText("✂️ Crop")
+        
+    return crop_btn
+
 def create_upload_button(app_instance):
+    """Create the upload button for original image"""
     upload_btn = QPushButton(" Upload Image")
     upload_btn.setObjectName("upload-btn")
     upload_btn.setCursor(Qt.PointingHandCursor)

@@ -1,5 +1,6 @@
 from PIL import Image
 from modules.grayscale_converter import GrayscaleConverter
+from modules.background_remover import BackgroundRemover
 
 class BlackWhiteConverter:
     def __init__(self):
@@ -7,6 +8,7 @@ class BlackWhiteConverter:
         self.width = 0
         self.height = 0
         self.grayscale_converter = GrayscaleConverter()
+        self.background_remover = BackgroundRemover()
         self.threshold = 128  # Default threshold
     
     def convert_to_black_white(self, pil_image, threshold=None, method='manual'):
@@ -176,6 +178,25 @@ class BlackWhiteConverter:
         
         self.black_white_image = three_level_image
         return self.black_white_image
+    
+    def remove_background(self, pil_image, method='auto', tolerance=30, bg_color=None):
+        """
+        Remove background from image using BackgroundRemover
+        
+        Parameters:
+        - pil_image: Input PIL Image
+        - method: 'auto' (automatic detection) or 'simple' (faster)
+        - tolerance: Color tolerance (0-255)
+        - bg_color: Specific background color to remove (for simple method)
+        """
+        if method == 'simple':
+            return self.background_remover.remove_background_simple(pil_image, bg_color, tolerance)
+        else:
+            return self.background_remover.remove_background(pil_image, tolerance)
+    
+    def get_background_removal_stats(self):
+        """Get statistics about background removal"""
+        return self.background_remover.get_stats()
     
     def get_threshold_info(self):
         """Get information about the threshold used"""
