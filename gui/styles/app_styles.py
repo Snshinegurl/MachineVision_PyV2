@@ -65,11 +65,13 @@ def get_app_styles():
         #user-name {
             font-size: 14px;
             font-weight: 600;
+            padding: 10px;
         }
         
         #user-role {
             font-size: 12px;
             color: #9CA3AF;
+            padding: 10px;
         }
         
         /* Page Header */

@@ -89,7 +89,7 @@ def create_user_profile():
     user_layout.setSpacing(12)
     user_layout.setContentsMargins(8, 8, 8, 8)
     
-    user_avatar = QLabel("AI")
+    user_avatar = QLabel("JM")
     user_avatar.setObjectName("user-avatar")
     user_avatar.setAlignment(Qt.AlignCenter)
     user_avatar.setFixedSize(32, 32)
@@ -107,10 +107,10 @@ def create_user_info():
     user_info_layout.setContentsMargins(0, 0, 0, 0)
     user_info_layout.setSpacing(2)
     
-    user_name = QLabel("Image Processor")
+    user_name = QLabel("Marc Jm Arabejo")
     user_name.setObjectName("user-name")
     
-    user_role = QLabel("AI Assistant")
+    user_role = QLabel("Developer")
     user_role.setObjectName("user-role")
     
     user_info_layout.addWidget(user_name)
