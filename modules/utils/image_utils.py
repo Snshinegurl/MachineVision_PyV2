@@ -1,10 +1,10 @@
 import os
 from PIL import Image
+from modules.pixel_stats import PixelStats   # new impor
 
 class ImageUtils:
     @staticmethod
     def get_image_info(image_path):
-        """Get basic image information"""
         try:
             with Image.open(image_path) as img:
                 width, height = img.size
@@ -15,18 +15,15 @@ class ImageUtils:
     
     @staticmethod
     def is_supported_format(image_path):
-        """Check if image format is supported"""
         supported_formats = ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp')
         return image_path.lower().endswith(supported_formats)
     
     @staticmethod
     def calculate_file_size(image_path):
-        """Calculate file size in bytes"""
         return os.path.getsize(image_path)
     
     @staticmethod
     def format_file_size(size_bytes):
-        """Format file size in human readable format"""
         if size_bytes == 0:
             return "0 Bytes"
         size_names = ("Bytes", "KB", "MB", "GB")
@@ -35,3 +32,10 @@ class ImageUtils:
             size_bytes /= 1024.0
             i += 1
         return f"{size_bytes:.2f} {size_names[i]}"
+    
+    # New method using PixelStats
+    @staticmethod
+    def get_pixel_sum(image):
+        """Return sum of grayscale values of all pixels."""
+        total, _ = PixelStats.get_grayscale_sum(image)
+        return total
