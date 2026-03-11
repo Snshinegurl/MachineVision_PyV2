@@ -230,31 +230,22 @@ def get_app_styles():
             cursor: not-allowed;
         }
         
+        #status-badge-pending, #status-badge-processing, #status-badge-ready {
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
         #status-badge-pending {
             background-color: rgba(245, 158, 11, 0.2);
             color: #F59E0B;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
         }
-        
         #status-badge-processing {
             background-color: rgba(79, 70, 229, 0.2);
             color: #4F46E5;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
         }
-        
         #status-badge-ready {
             background-color: rgba(16, 185, 129, 0.2);
             color: #10B981;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
         }
         
         #image-display-area {
@@ -418,27 +409,21 @@ def get_app_styles():
         
         /* Process Button */
         #process-btn {
-            padding: 16px 28px;
-            background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, 
-                                        stop:0 #4F46E5, stop:1 #4338CA);
+            background-color: #8B5CF6;
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 6px;
+            padding: 8px 16px;
             font-weight: 600;
-            font-size: 16px;
-            min-width: 220px;
-            min-height: 65px;
+            font-size: 13px;
         }
-        
         #process-btn:hover:enabled {
-            background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, 
-                                        stop:0 #4338CA, stop:1 #4F46E5);
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+            background-color: #7C3AED;
+            transform: translateY(-1px);
         }
-        
         #process-btn:disabled {
             opacity: 0.5;
+            cursor: not-allowed;
         }
         
         #button-description {
@@ -538,4 +523,6 @@ def get_app_styles():
             margin: 10px 20px;
             border: 1px solid #374151;
         }
+
+
     """
