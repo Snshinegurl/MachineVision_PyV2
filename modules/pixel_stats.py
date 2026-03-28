@@ -1,5 +1,5 @@
 # pixel_stats.py
-from PIL import Image  # used only for pixel access and size, not for statistics
+from PIL import Image
 
 class PixelStats:
     """Utility class for manual pixel statistics without PIL statistical methods."""
@@ -22,7 +22,6 @@ class PixelStats:
         If image is not grayscale, convert using luminosity method manually.
         Returns total sum and count.
         """
-        # Ensure RGB mode for consistent access
         if image.mode not in ('RGB', 'RGBA'):
             img = image.convert('RGB')
         else:
@@ -72,6 +71,34 @@ class PixelStats:
         return hist
 
     @staticmethod
+    def get_rgb_histograms(image):
+        """
+        Return three histograms (r, g, b) as lists of 256 ints.
+        If image has alpha, it is ignored.
+        """
+        # Ensure RGB mode
+        if image.mode not in ('RGB', 'RGBA'):
+            img = image.convert('RGB')
+        else:
+            img = image
+        pixels = img.load()
+        w, h = img.size
+        r_hist = [0] * 256
+        g_hist = [0] * 256
+        b_hist = [0] * 256
+        for y in range(h):
+            for x in range(w):
+                pixel = pixels[x, y]
+                if len(pixel) >= 3:
+                    r, g, b = pixel[0], pixel[1], pixel[2]
+                else:
+                    r = g = b = pixel[0]
+                r_hist[r] += 1
+                g_hist[g] += 1
+                b_hist[b] += 1
+        return r_hist, g_hist, b_hist
+
+    @staticmethod
     def count_pixels_by_condition(image, condition_func):
         """
         Count pixels that satisfy condition_func(pixel).
@@ -96,20 +123,17 @@ class PixelStats:
         if total_pixels == 0:
             return None
 
-        # Mean
         sum_val = 0
         for i, cnt in enumerate(hist):
             sum_val += i * cnt
         mean = sum_val / total_pixels
 
-        # Variance and std
         sum_sq = 0
         for i, cnt in enumerate(hist):
             sum_sq += (i - mean) ** 2 * cnt
         variance = sum_sq / total_pixels
         std = variance ** 0.5
 
-        # Min and max (first and last non‑zero bins)
         min_val = next(i for i, cnt in enumerate(hist) if cnt > 0)
         max_val = next(i for i in range(255, -1, -1) if hist[i] > 0)
 

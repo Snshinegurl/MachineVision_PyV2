@@ -6,11 +6,11 @@ from PySide6.QtGui import *
 import io
 import qtawesome as qta
 
-# Import our custom modules
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from modules.image_processor import ImageProcessor
 from modules.grayscale_converter import GrayscaleConverter
 from modules.black_white_converter import BlackWhiteConverter
+from modules.pixel_stats import PixelStats   # for histogram
 
 class ImageProcessingApp(QMainWindow):
     def __init__(self):
@@ -26,7 +26,7 @@ class ImageProcessingApp(QMainWindow):
         self.image_processor = ImageProcessor()
         self.grayscale_converter = GrayscaleConverter()
         self.black_white_converter = BlackWhiteConverter()
-        self.current_filter = "custom_grayscale"   # default
+        self.current_filter = "custom_grayscale"
         self.setup_ui()
         self.apply_styles()
 
@@ -67,7 +67,6 @@ class ImageProcessingApp(QMainWindow):
         content_layout.addWidget(self.create_status_bar())
         content_layout.addWidget(self.create_file_info_cards())
 
-        # Add filter navigation bar (tabs)
         from gui.ui_components.header import create_filter_navbar
         filter_navbar = create_filter_navbar(self)
         content_layout.addWidget(filter_navbar)
@@ -107,7 +106,7 @@ class ImageProcessingApp(QMainWindow):
             self.original_placeholder, self.original_image_label,
             self.processed_placeholder, self.processed_image_label,
             self.processed_status, self.save_btn, self.crop_btn, self.process_btn,
-            self.bw_threshold_widget   # this is the threshold widget container
+            self.bw_threshold_widget
         ) = components
 
         self.add_crop_confirmation_controls(widget)
@@ -161,8 +160,8 @@ class ImageProcessingApp(QMainWindow):
     def create_control_panel(self):
         from gui.ui_components.control_panel import create_control_panel
         widget, components = create_control_panel(self)
-        # components: (stacked_widget,)
         self.filter_stack = components[0]
+        # histogram_widget is stored as self.histogram_widget inside create_control_panel
         return widget
 
     def get_scrollbar_style(self):
@@ -252,12 +251,10 @@ class ImageProcessingApp(QMainWindow):
         filter_map = {0: "custom_grayscale", 1: "custom_bw", 2: "background_removal"}
         self.current_filter = filter_map[index]
 
-        # Show/hide the threshold widget based on selected filter
         if hasattr(self, 'bw_threshold_widget'):
             self.bw_threshold_widget.setVisible(self.current_filter == "custom_bw")
 
     def on_threshold_changed(self, value):
-        # Update label and converter
         if hasattr(self, 'bw_threshold_value_label'):
             self.bw_threshold_value_label.setText(str(value))
         self.black_white_converter.threshold = value
@@ -402,18 +399,22 @@ class ImageProcessingApp(QMainWindow):
         cropped_pil.save(byte_arr, format='PNG')
         pixmap = QPixmap()
         pixmap.loadFromData(byte_arr.getvalue())
-
         scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.original_image_label.setPixmap(scaled_pixmap)
 
+        # Update processed panel with cropped image
+        self.processed_image_label.setPixmap(scaled_pixmap)
+        self.processed_placeholder.hide()
+        self.processed_image_label.show()
+
         self.processed_image = None
-        self.processed_image_label.hide()
-        self.processed_placeholder.show()
-        self.processed_status.setText("Waiting")
+        self.processed_status.setText("Cropped")
         self.processed_status.setObjectName("status-badge-pending")
         self.save_btn.setEnabled(False)
-        # Fix: Enable process button because we now have a cropped image to process
         self.process_btn.setEnabled(True)
+
+        # Update histogram with cropped image
+        self.update_histogram(cropped_pil)
 
         self.update_image_info_after_crop(cropped_pil)
 
@@ -473,12 +474,17 @@ class ImageProcessingApp(QMainWindow):
                 self.original_image_label.show()
 
                 self.processed_image = None
-                self.processed_image_label.hide()
-                self.processed_placeholder.show()
-                self.processed_status.setText("Waiting")
+                self.processed_image_label.setPixmap(scaled_pixmap)
+                self.processed_placeholder.hide()
+                self.processed_image_label.show()
+
+                self.processed_status.setText("Original")
                 self.processed_status.setObjectName("status-badge-pending")
                 self.save_btn.setEnabled(False)
                 self.process_btn.setEnabled(True)
+
+                # Update histogram with original image
+                self.update_histogram(self.original_image)
 
                 self.update_info_cards(image_info)
                 self.status_value.setText("Image Uploaded")
@@ -540,6 +546,9 @@ class ImageProcessingApp(QMainWindow):
             self.processed_status.setObjectName("status-badge-ready")
             self.save_btn.setEnabled(True)
             self.process_btn.setEnabled(True)
+
+            # Update histogram with processed image
+            self.update_histogram(processed)
 
             crop_info = " (cropped)" if self.crop_applied else ""
             if self.current_filter == "custom_bw":
@@ -620,7 +629,7 @@ class ImageProcessingApp(QMainWindow):
 
     def apply_filter(self, image, filter_name):
         if filter_name == "custom_grayscale":
-            return self.grayscale_converter.convert_manual_loop(image)
+            return self.grayscale_converter.convert_to_grayscale(image)
         elif filter_name == "custom_bw":
             threshold = self.bw_threshold_slider.value()
             return self.black_white_converter.convert_to_black_white(image, threshold=threshold)
@@ -632,3 +641,11 @@ class ImageProcessingApp(QMainWindow):
     def apply_styles(self):
         from gui.styles.app_styles import get_app_styles
         self.setStyleSheet(get_app_styles())
+
+    def update_histogram(self, pil_image):
+        """Compute RGB histograms and update the histogram widget."""
+        if pil_image is None:
+            return
+        r_hist, g_hist, b_hist = PixelStats.get_rgb_histograms(pil_image)
+        if hasattr(self, 'histogram_widget'):
+            self.histogram_widget.set_histograms(r_hist, g_hist, b_hist)
