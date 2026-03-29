@@ -9,7 +9,7 @@ def create_image_processing_section(app_instance):
     layout.setSpacing(24)
     layout.setContentsMargins(0, 0, 0, 0)
 
-    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget = create_image_card(
+    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget = create_image_card(
         "Original Image", "file-upload", True, app_instance
     )
     processed_card, processed_placeholder, processed_image_label, processed_status, save_btn, process_btn = create_image_card(
@@ -22,7 +22,8 @@ def create_image_processing_section(app_instance):
     components = (
         original_placeholder, original_image_label,
         processed_placeholder, processed_image_label,
-        processed_status, save_btn, crop_btn, process_btn, threshold_widget
+        processed_status, save_btn, crop_btn, process_btn,
+        threshold_widget, rotation_widget
     )
     return widget, components
 
@@ -34,16 +35,14 @@ def create_image_card(title, icon, is_original, app_instance):
     layout.setContentsMargins(0, 0, 0, 0)
 
     if is_original:
-        header, crop_btn, threshold_widget = create_card_header(title, icon, is_original, app_instance)
+        header, crop_btn, threshold_widget, rotation_widget = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
-
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
-        return widget, placeholder, image_label, crop_btn, threshold_widget
+        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget
     else:
         header, processed_status, save_btn, process_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
-
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
         return widget, placeholder, image_label, processed_status, save_btn, process_btn
@@ -51,7 +50,7 @@ def create_image_card(title, icon, is_original, app_instance):
 def create_card_header(title, icon, is_original, app_instance):
     header = QWidget()
     header.setObjectName("card-header")
-    header_layout = QVBoxLayout(header)   # Changed to vertical to accommodate threshold slider below
+    header_layout = QVBoxLayout(header)
     header_layout.setContentsMargins(20, 20, 20, 10)
     header_layout.setSpacing(8)
 
@@ -70,19 +69,24 @@ def create_card_header(title, icon, is_original, app_instance):
         top_layout.addWidget(crop_btn)
         top_layout.addWidget(upload_btn)
 
-        # Threshold slider (initially hidden)
+        # Threshold slider (for B&W) – initially hidden
         threshold_widget = create_threshold_widget(app_instance)
-        threshold_widget.setVisible(False)  # Hidden by default
-        app_instance.bw_threshold_widget = threshold_widget  # Store reference
+        threshold_widget.setVisible(False)
+        app_instance.bw_threshold_widget = threshold_widget
+
+        # Rotation widget (for Rotate) – initially hidden
+        rotation_widget = create_rotation_widget(app_instance)
+        rotation_widget.setVisible(False)
+        app_instance.rotation_widget = rotation_widget
 
         header_layout.addWidget(top_row)
         header_layout.addWidget(threshold_widget)
+        header_layout.addWidget(rotation_widget)
 
-        return header, crop_btn, threshold_widget
+        return header, crop_btn, threshold_widget, rotation_widget
     else:
         right_widget, processed_status, save_btn, process_btn = create_processed_header_right(app_instance)
         top_layout.addWidget(right_widget)
-
         header_layout.addWidget(top_row)
         return header, processed_status, save_btn, process_btn
 
@@ -230,6 +234,62 @@ def create_threshold_widget(app_instance):
     # Store references in the main app instance for later access
     app_instance.bw_threshold_slider = threshold_slider
     app_instance.bw_threshold_value_label = threshold_value_label
+
+    return widget
+
+def create_rotation_widget(app_instance):
+    """Create the rotation angle input widget (slider + spinbox) - 0 to 360 degrees."""
+    widget = QWidget()
+    widget.setObjectName("rotation-widget")
+    layout = QVBoxLayout(widget)
+    layout.setContentsMargins(0, 8, 0, 0)
+    layout.setSpacing(8)
+
+    # Header with label and value
+    header_widget = QWidget()
+    header_layout = QHBoxLayout(header_widget)
+    header_layout.setContentsMargins(0, 0, 0, 0)
+
+    label = QLabel("Rotation Angle:")
+    label.setObjectName("threshold-label")
+
+    value_label = QLabel("0°")
+    value_label.setObjectName("threshold-value-label")
+
+    header_layout.addWidget(label)
+    header_layout.addStretch()
+    header_layout.addWidget(value_label)
+
+    # Slider (0 to 360)
+    slider = QSlider(Qt.Horizontal)
+    slider.setObjectName("threshold-slider")
+    slider.setMinimum(0)
+    slider.setMaximum(360)
+    slider.setValue(0)
+    slider.setSingleStep(1)
+    slider.setPageStep(15)
+
+    # Spinbox (0 to 360)
+    spinbox = QSpinBox()
+    spinbox.setMinimum(0)
+    spinbox.setMaximum(360)
+    spinbox.setValue(0)
+    spinbox.setSuffix("°")
+
+    # Connect signals
+    slider.valueChanged.connect(lambda v: spinbox.setValue(v))
+    spinbox.valueChanged.connect(lambda v: slider.setValue(v))
+    slider.valueChanged.connect(lambda v: value_label.setText(f"{v}°"))
+    slider.valueChanged.connect(lambda v: app_instance.on_rotation_changed(v))
+
+    layout.addWidget(header_widget)
+    layout.addWidget(slider)
+    layout.addWidget(spinbox)
+
+    # Store references in the main app
+    app_instance.rotation_slider = slider
+    app_instance.rotation_value_label = value_label
+    app_instance.rotation_spinbox = spinbox
 
     return widget
 

@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+VisionPro AI Image Processing Application
+Main entry point
+"""
+
 import sys
 import os
 from PySide6.QtWidgets import *
@@ -12,6 +18,7 @@ from modules.grayscale_converter import GrayscaleConverter
 from modules.black_white_converter import BlackWhiteConverter
 from modules.pixel_stats import PixelStats
 from modules.color_filter import ColorFilter
+from modules.rotate_converter import ImageRotator      # NEW
 
 class ImageProcessingApp(QMainWindow):
     def __init__(self):
@@ -27,7 +34,9 @@ class ImageProcessingApp(QMainWindow):
         self.image_processor = ImageProcessor()
         self.grayscale_converter = GrayscaleConverter()
         self.black_white_converter = BlackWhiteConverter()
+        self.image_rotator = ImageRotator()               # NEW
         self.current_filter = "custom_grayscale"
+        self.current_rotation_angle = 0                   # NEW
         self.setup_ui()
         self.apply_styles()
 
@@ -86,7 +95,7 @@ class ImageProcessingApp(QMainWindow):
         from gui.ui_components.page_header import create_page_header
         widget = create_page_header()
         widget.findChild(QLabel, "page-title").setText("Advanced Image Processing Dashboard")
-        widget.findChild(QLabel, "page-subtitle").setText("Upload, crop, and apply filters including background removal")
+        widget.findChild(QLabel, "page-subtitle").setText("Upload, crop, and apply filters including background removal and rotation")
         return widget
 
     def create_status_bar(self):
@@ -107,7 +116,7 @@ class ImageProcessingApp(QMainWindow):
             self.original_placeholder, self.original_image_label,
             self.processed_placeholder, self.processed_image_label,
             self.processed_status, self.save_btn, self.crop_btn, self.process_btn,
-            self.bw_threshold_widget
+            self.bw_threshold_widget, self.rotation_widget                # NEW: rotation_widget
         ) = components
 
         self.add_crop_confirmation_controls(widget)
@@ -248,23 +257,31 @@ class ImageProcessingApp(QMainWindow):
             }
         """
 
+    # ------------------------------------------------------------
+    # NEW: Tab change handler includes Rotate tab (index 4)
+    # ------------------------------------------------------------
     def on_filter_tab_changed(self, index):
-        filter_map = {0: "custom_grayscale", 1: "custom_bw", 2: "background_removal", 3: "color_filter"}
+        filter_map = {0: "custom_grayscale", 1: "custom_bw", 2: "background_removal", 3: "color_filter", 4: "rotate"}
         self.current_filter = filter_map[index]
 
         # Show/hide threshold widget (only for B&W)
         if hasattr(self, 'bw_threshold_widget'):
             self.bw_threshold_widget.setVisible(self.current_filter == "custom_bw")
 
+        # Show/hide rotation widget (only for Rotate)
+        if hasattr(self, 'rotation_widget'):
+            self.rotation_widget.setVisible(self.current_filter == "rotate")
+
         # Show/hide the controls stack (only for color filters)
         if hasattr(self, 'filter_controls_stack'):
             self.filter_controls_stack.setVisible(index == 3)
 
-        # Switch controls stack: page 0 = empty, page 1 = color filter buttons
+        # Switch controls stack page
         if hasattr(self, 'filter_controls_stack'):
             self.filter_controls_stack.setCurrentIndex(1 if index == 3 else 0)
 
         # Disable Process button for color filters (they have their own buttons)
+        # For Rotate we enable it
         if hasattr(self, 'process_btn'):
             self.process_btn.setEnabled(index != 3)
 
@@ -273,6 +290,15 @@ class ImageProcessingApp(QMainWindow):
             self.bw_threshold_value_label.setText(str(value))
         self.black_white_converter.threshold = value
 
+    # NEW: Rotation angle changed
+    def on_rotation_changed(self, value):
+        self.current_rotation_angle = value
+        if hasattr(self, 'rotation_value_label'):
+            self.rotation_value_label.setText(f"{value}°")
+
+    # ------------------------------------------------------------
+    # Crop event filter (unchanged)
+    # ------------------------------------------------------------
     def eventFilter(self, obj, event):
         if obj == self.original_image_label and self.is_cropping:
             if event.type() == QEvent.MouseButtonPress:
@@ -610,6 +636,13 @@ class ImageProcessingApp(QMainWindow):
                     "Success",
                     f"Background removed successfully{crop_info}! The image now has transparency."
                 )
+            elif self.current_filter == "rotate":
+                angle = self.current_rotation_angle
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Image{crop_info} rotated successfully by {angle}°!"
+                )
             else:
                 QMessageBox.information(
                     self,
@@ -673,6 +706,9 @@ class ImageProcessingApp(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to save image: {str(e)}")
 
+    # ------------------------------------------------------------
+    # NEW: apply_filter includes rotation
+    # ------------------------------------------------------------
     def apply_filter(self, image, filter_name):
         if filter_name == "custom_grayscale":
             return self.grayscale_converter.convert_to_grayscale(image)
@@ -681,6 +717,9 @@ class ImageProcessingApp(QMainWindow):
             return self.black_white_converter.convert_to_black_white(image, threshold=threshold)
         elif filter_name == "background_removal":
             return self.black_white_converter.remove_background(image, method='simple', tolerance=30)
+        elif filter_name == "rotate":
+            angle = self.current_rotation_angle
+            return self.image_rotator.rotate_image(image, angle)
         else:
             return self.grayscale_converter.convert_manual_loop(image)
 
