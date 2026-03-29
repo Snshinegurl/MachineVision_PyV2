@@ -10,7 +10,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from modules.image_processor import ImageProcessor
 from modules.grayscale_converter import GrayscaleConverter
 from modules.black_white_converter import BlackWhiteConverter
-from modules.pixel_stats import PixelStats   # for histogram
+from modules.pixel_stats import PixelStats
+from modules.color_filter import ColorFilter
 
 class ImageProcessingApp(QMainWindow):
     def __init__(self):
@@ -161,7 +162,7 @@ class ImageProcessingApp(QMainWindow):
         from gui.ui_components.control_panel import create_control_panel
         widget, components = create_control_panel(self)
         self.filter_stack = components[0]
-        # histogram_widget is stored as self.histogram_widget inside create_control_panel
+        self.filter_controls_stack = components[1]
         return widget
 
     def get_scrollbar_style(self):
@@ -248,11 +249,24 @@ class ImageProcessingApp(QMainWindow):
         """
 
     def on_filter_tab_changed(self, index):
-        filter_map = {0: "custom_grayscale", 1: "custom_bw", 2: "background_removal"}
+        filter_map = {0: "custom_grayscale", 1: "custom_bw", 2: "background_removal", 3: "color_filter"}
         self.current_filter = filter_map[index]
 
+        # Show/hide threshold widget (only for B&W)
         if hasattr(self, 'bw_threshold_widget'):
             self.bw_threshold_widget.setVisible(self.current_filter == "custom_bw")
+
+        # Show/hide the controls stack (only for color filters)
+        if hasattr(self, 'filter_controls_stack'):
+            self.filter_controls_stack.setVisible(index == 3)
+
+        # Switch controls stack: page 0 = empty, page 1 = color filter buttons
+        if hasattr(self, 'filter_controls_stack'):
+            self.filter_controls_stack.setCurrentIndex(1 if index == 3 else 0)
+
+        # Disable Process button for color filters (they have their own buttons)
+        if hasattr(self, 'process_btn'):
+            self.process_btn.setEnabled(index != 3)
 
     def on_threshold_changed(self, value):
         if hasattr(self, 'bw_threshold_value_label'):
@@ -508,6 +522,38 @@ class ImageProcessingApp(QMainWindow):
             self.pixels_card,
             self.format_card
         )
+
+    def apply_color_filter(self, filter_func):
+        """Apply a color filter from the color_filter module."""
+        image_to_process = self.cropped_image if self.crop_applied and self.cropped_image else self.original_image
+        if not image_to_process:
+            QMessageBox.warning(self, "Warning", "Please upload an image first!")
+            return
+
+        # Convert to grayscale using the existing converter
+        grayscale_img = self.grayscale_converter.convert_to_grayscale(image_to_process)
+        if not grayscale_img:
+            QMessageBox.warning(self, "Warning", "Failed to convert to grayscale.")
+            return
+
+        try:
+            processed = filter_func(grayscale_img)
+            self.processed_image = processed
+            # Display the result
+            byte_arr = io.BytesIO()
+            processed.save(byte_arr, format='PNG')
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_arr.getvalue())
+            scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.processed_image_label.setPixmap(scaled_pixmap)
+            self.processed_placeholder.hide()
+            self.processed_image_label.show()
+            self.processed_status.setText("Color Filter")
+            self.processed_status.setObjectName("status-badge-ready")
+            self.save_btn.setEnabled(True)
+            self.update_histogram(processed)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to apply filter: {str(e)}")
 
     def process_image(self):
         image_to_process = self.cropped_image if self.crop_applied and self.cropped_image else self.original_image

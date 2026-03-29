@@ -130,6 +130,7 @@ def create_filter_navbar(app_instance):
     tab_bar.addTab("Grayscale")
     tab_bar.addTab("Black & White")
     tab_bar.addTab("Background Removal")
+    tab_bar.addTab("Color Filters")          # <-- new tab
     tab_bar.setExpanding(True)
     tab_bar.setStyleSheet("""
         QTabBar::tab {
