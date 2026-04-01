@@ -131,7 +131,8 @@ def create_filter_navbar(app_instance):
     tab_bar.addTab("Black & White")
     tab_bar.addTab("Background Removal")
     tab_bar.addTab("Color Filters")
-    tab_bar.addTab("Rotate")          # <-- new tab
+    tab_bar.addTab("Rotate")          
+    tab_bar.addTab("Mirror")
     tab_bar.setExpanding(True)
     tab_bar.setStyleSheet("""
         QTabBar::tab {

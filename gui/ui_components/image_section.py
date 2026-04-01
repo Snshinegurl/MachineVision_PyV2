@@ -9,7 +9,7 @@ def create_image_processing_section(app_instance):
     layout.setSpacing(24)
     layout.setContentsMargins(0, 0, 0, 0)
 
-    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget = create_image_card(
+    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget = create_image_card(
         "Original Image", "file-upload", True, app_instance
     )
     processed_card, processed_placeholder, processed_image_label, processed_status, save_btn, process_btn = create_image_card(
@@ -23,7 +23,7 @@ def create_image_processing_section(app_instance):
         original_placeholder, original_image_label,
         processed_placeholder, processed_image_label,
         processed_status, save_btn, crop_btn, process_btn,
-        threshold_widget, rotation_widget
+        threshold_widget, rotation_widget, mirror_widget
     )
     return widget, components
 
@@ -35,11 +35,11 @@ def create_image_card(title, icon, is_original, app_instance):
     layout.setContentsMargins(0, 0, 0, 0)
 
     if is_original:
-        header, crop_btn, threshold_widget, rotation_widget = create_card_header(title, icon, is_original, app_instance)
+        header, crop_btn, threshold_widget, rotation_widget, mirror_widget = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
-        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget
+        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget
     else:
         header, processed_status, save_btn, process_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
@@ -79,11 +79,17 @@ def create_card_header(title, icon, is_original, app_instance):
         rotation_widget.setVisible(False)
         app_instance.rotation_widget = rotation_widget
 
+        # Mirror widget (for Mirror) – initially hidden
+        mirror_widget = create_mirror_widget(app_instance)
+        mirror_widget.setVisible(False)
+        app_instance.mirror_widget = mirror_widget
+
         header_layout.addWidget(top_row)
         header_layout.addWidget(threshold_widget)
         header_layout.addWidget(rotation_widget)
+        header_layout.addWidget(mirror_widget)
 
-        return header, crop_btn, threshold_widget, rotation_widget
+        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget
     else:
         right_widget, processed_status, save_btn, process_btn = create_processed_header_right(app_instance)
         top_layout.addWidget(right_widget)
@@ -290,6 +296,35 @@ def create_rotation_widget(app_instance):
     app_instance.rotation_slider = slider
     app_instance.rotation_value_label = value_label
     app_instance.rotation_spinbox = spinbox
+
+    return widget
+
+def create_mirror_widget(app_instance):
+    """Create radio buttons for mirror direction (Horizontal/Vertical)."""
+    widget = QWidget()
+    widget.setObjectName("mirror-widget")
+    layout = QVBoxLayout(widget)
+    layout.setContentsMargins(0, 8, 0, 0)
+    layout.setSpacing(8)
+
+    label = QLabel("Mirror Direction:")
+    label.setObjectName("threshold-label")
+
+    radio_h = QRadioButton("Horizontal")
+    radio_v = QRadioButton("Vertical")
+    radio_h.setChecked(True)
+
+    # Store in app instance
+    app_instance.mirror_horizontal_radio = radio_h
+    app_instance.mirror_vertical_radio = radio_v
+
+    # Connect signals
+    radio_h.toggled.connect(lambda: app_instance.on_mirror_direction_changed())
+    radio_v.toggled.connect(lambda: app_instance.on_mirror_direction_changed())
+
+    layout.addWidget(label)
+    layout.addWidget(radio_h)
+    layout.addWidget(radio_v)
 
     return widget
 
