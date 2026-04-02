@@ -109,7 +109,7 @@ class ImageProcessingApp(QMainWindow):
     def create_file_info_cards(self):
         from gui.ui_components.info_cards import create_file_info_cards
         widget, cards = create_file_info_cards()
-        self.file_name_card, self.file_size_card, self.dimensions_card, self.pixels_card, self.format_card = cards
+        self.file_name_card, self.file_size_card, self.dimensions_card, self.pixels_card, self.format_card, self.object_area_card = cards
         return widget
 
     def create_image_processing_section(self):
@@ -464,6 +464,10 @@ class ImageProcessingApp(QMainWindow):
 
         self.update_image_info_after_crop(cropped_pil)
 
+        # Update object area to total pixels of cropped image
+        total_pixels = cropped_pil.size[0] * cropped_pil.size[1]
+        self.object_area_card.findChild(QLabel, "card-value").setText(f"{total_pixels:,} (total)")
+
         self.cancel_cropping()
 
         QMessageBox.information(self, "Success",
@@ -533,6 +537,11 @@ class ImageProcessingApp(QMainWindow):
                 self.update_histogram(self.original_image)
 
                 self.update_info_cards(image_info)
+
+                # Reset object area to total pixels (or N/A)
+                total_pixels = self.original_image.size[0] * self.original_image.size[1]
+                self.object_area_card.findChild(QLabel, "card-value").setText(f"{total_pixels:,} (total)")
+
                 self.status_value.setText("Image Uploaded")
                 self.status_value.setObjectName("status-value-uploaded")
                 self.apply_styles()
@@ -543,7 +552,7 @@ class ImageProcessingApp(QMainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load image: {str(e)}")
-
+                
     def update_info_cards(self, image_info):
         from gui.ui_components.info_cards import update_info_cards
         update_info_cards(
@@ -552,8 +561,10 @@ class ImageProcessingApp(QMainWindow):
             self.file_size_card,
             self.dimensions_card,
             self.pixels_card,
-            self.format_card
+            self.format_card,
+            self.object_area_card
         )
+        # Object area is updated separately
 
     def apply_color_filter(self, filter_func):
         """Apply a color filter from the color_filter module."""
@@ -584,6 +595,11 @@ class ImageProcessingApp(QMainWindow):
             self.processed_status.setObjectName("status-badge-ready")
             self.save_btn.setEnabled(True)
             self.update_histogram(processed)
+
+            # Update object area (total pixels for color filter)
+            total_pixels = processed.size[0] * processed.size[1]
+            self.object_area_card.findChild(QLabel, "card-value").setText(f"{total_pixels:,} (total)")
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to apply filter: {str(e)}")
 
@@ -627,6 +643,13 @@ class ImageProcessingApp(QMainWindow):
 
             # Update histogram with processed image
             self.update_histogram(processed)
+
+            # Compute and update object area using image_processor
+            object_area = self.image_processor.compute_object_area(processed, self.current_filter)
+            if object_area == processed.size[0] * processed.size[1]:
+                self.object_area_card.findChild(QLabel, "card-value").setText(f"{object_area:,} (total)")
+            else:
+                self.object_area_card.findChild(QLabel, "card-value").setText(f"{object_area:,}")
 
             crop_info = " (cropped)" if self.crop_applied else ""
             if self.current_filter == "custom_bw":
