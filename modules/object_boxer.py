@@ -19,7 +19,7 @@ class ObjectBoxer:
         bg_remover = BackgroundRemover()
         rgba_img = bg_remover.remove_background(pil_image, tolerance=30)
         if rgba_img is None:
-            raise Exception("Background removal failed – cannot detect objects")
+            raise Exception("Background removal failed - cannot detect objects")
 
         width, height = rgba_img.size
         # Build foreground mask from alpha channel (alpha > 0)
