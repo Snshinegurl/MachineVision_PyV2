@@ -271,49 +271,86 @@ class ImageProcessingApp(QMainWindow):
         if self.processed_image is None:
             QMessageBox.warning(self, "Warning", "No processed image available. Please process an image first.")
             return
+
         img = self.processed_image.copy()
         width, height = img.size
         img_cx = width / 2.0
         img_cy = height / 2.0
-        obj_cx, obj_cy = img_cx, img_cy
-        has_object = False
-        if img.mode == 'RGBA':
-            pixels = img.load()
-            total_mass = 0
-            sum_x = 0.0
-            sum_y = 0.0
-            for y in range(height):
-                for x in range(width):
-                    alpha = pixels[x, y][3]
-                    if alpha > 0:
-                        total_mass += 1
-                        sum_x += x
-                        sum_y += y
-            if total_mass > 0:
-                obj_cx = sum_x / total_mass
-                obj_cy = sum_y / total_mass
-                has_object = True
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(img)
-        marker_size = 15
-        line_width = 2
-        draw.line([(img_cx - marker_size, img_cy), (img_cx + marker_size, img_cy)], fill='red', width=line_width)
-        draw.line([(img_cx, img_cy - marker_size), (img_cx, img_cy + marker_size)], fill='red', width=line_width)
-        if has_object:
-            draw.line([(obj_cx - marker_size, obj_cy), (obj_cx + marker_size, obj_cy)], fill='lime', width=line_width)
-            draw.line([(obj_cx, obj_cy - marker_size), (obj_cx, obj_cy + marker_size)], fill='lime', width=line_width)
-        byte_arr = io.BytesIO()
-        img.save(byte_arr, format='PNG')
-        pixmap = QPixmap()
-        pixmap.loadFromData(byte_arr.getvalue())
-        scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.processed_image_label.setPixmap(scaled_pixmap)
-        coord_msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})"
-        if has_object:
-            coord_msg += f"\nObject Centroid: ({obj_cx:.1f}, {obj_cy:.1f})"
+
+        # If we are in object boxing mode and have detected objects
+        if self.current_filter == "object_boxing" and hasattr(self.object_boxer, 'objects') and self.object_boxer.objects:
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(img)
+            marker_size = 8
+            line_width = 2
+
+            # Draw image centroid (red)
+            draw.line([(img_cx - marker_size, img_cy), (img_cx + marker_size, img_cy)], fill='red', width=line_width)
+            draw.line([(img_cx, img_cy - marker_size), (img_cx, img_cy + marker_size)], fill='red', width=line_width)
+
+            # Draw centroids for each object (green)
+            coord_msgs = []
+            for i, obj in enumerate(self.object_boxer.objects):
+                cx, cy = obj['centroid']
+                draw.line([(cx - marker_size, cy), (cx + marker_size, cy)], fill='lime', width=line_width)
+                draw.line([(cx, cy - marker_size), (cx, cy + marker_size)], fill='lime', width=line_width)
+                draw.ellipse([cx-3, cy-3, cx+3, cy+3], fill='lime')
+                coord_msgs.append(f"Object {i+1}: ({cx:.1f}, {cy:.1f})")
+
+            # Update displayed image
+            byte_arr = io.BytesIO()
+            img.save(byte_arr, format='PNG')
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_arr.getvalue())
+            scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.processed_image_label.setPixmap(scaled_pixmap)
+
+            msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})\n\nDetected Objects: {len(self.object_boxer.objects)}\n" + "\n".join(coord_msgs)
+            QMessageBox.information(self, "Centroid Coordinates", msg)
         else:
-            coord_msg += "\nObject Centroid: Not available (no segmented object)"
-        QMessageBox.information(self, "Centroid Coordinates", coord_msg)
+            # Fallback for other filters (e.g., background removal, grayscale, etc.)
+            obj_cx, obj_cy = img_cx, img_cy
+            has_object = False
+            if img.mode == 'RGBA':
+                pixels = img.load()
+                total_mass = 0
+                sum_x = 0.0
+                sum_y = 0.0
+                for y in range(height):
+                    for x in range(width):
+                        alpha = pixels[x, y][3]
+                        if alpha > 0:
+                            total_mass += 1
+                            sum_x += x
+                            sum_y += y
+                if total_mass > 0:
+                    obj_cx = sum_x / total_mass
+                    obj_cy = sum_y / total_mass
+                    has_object = True
+
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(img)
+            marker_size = 15
+            line_width = 2
+            draw.line([(img_cx - marker_size, img_cy), (img_cx + marker_size, img_cy)], fill='red', width=line_width)
+            draw.line([(img_cx, img_cy - marker_size), (img_cx, img_cy + marker_size)], fill='red', width=line_width)
+            if has_object:
+                draw.line([(obj_cx - marker_size, obj_cy), (obj_cx + marker_size, obj_cy)], fill='lime', width=line_width)
+                draw.line([(obj_cx, obj_cy - marker_size), (obj_cx, obj_cy + marker_size)], fill='lime', width=line_width)
+
+            byte_arr = io.BytesIO()
+            img.save(byte_arr, format='PNG')
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_arr.getvalue())
+            scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.processed_image_label.setPixmap(scaled_pixmap)
+
+            coord_msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})"
+            if has_object:
+                coord_msg += f"\nObject Centroid: ({obj_cx:.1f}, {obj_cy:.1f})"
+            else:
+                coord_msg += "\nObject Centroid: Not available (no segmented object)"
+            QMessageBox.information(self, "Centroid Coordinates", coord_msg)
 
     # ------------------- EVENT FILTER (crop) -------------------
     def eventFilter(self, obj, event):

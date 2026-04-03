@@ -7,6 +7,7 @@ class BackgroundRemover:
         self.removed_background_image = None
         self.width = 0
         self.height = 0
+        self.objects = []   # list of dicts: {'bbox', 'centroid', 'area'}
 
     def remove_background(self, pil_image, tolerance=30):
         if not pil_image:
@@ -27,20 +28,19 @@ class BackgroundRemover:
             else:
                 r = g = b = pixel[0]
             distance = abs(r - bg_color[0]) + abs(g - bg_color[1]) + abs(b - bg_color[2])
-            # Return 1 if background, else 0 (we'll store as a 1‑channel image)
+            # Return 1 if background, else 0
             return (1 if distance <= tolerance * 3 else 0,)
 
-        # Create a 1‑channel mask image ('L' mode)
         mask_img = process_pixels(pil_image, mask_transform, output_mode='L')
-        # Convert mask to a 2D list of booleans for flood fill
         mask_pixels = mask_img.load()
-        mask = [[False for _ in range(self.width)] for _ in range(self.height)]
+        # Convert to 2D boolean: True = background, False = foreground
+        bg_mask = [[False for _ in range(self.width)] for _ in range(self.height)]
         for y in range(self.height):
             for x in range(self.width):
-                mask[y][x] = (mask_pixels[x, y] == 1)
+                bg_mask[y][x] = (mask_pixels[x, y] == 1)
 
         # 3. Flood fill from borders (manual BFS)
-        visited = self._flood_fill_mask(mask)
+        visited = self._flood_fill_mask(bg_mask)
 
         # 4. Create RGBA image with transparency using process_pixels
         def rgba_transform(x, y, pixel):
@@ -53,10 +53,49 @@ class BackgroundRemover:
 
         rgba_img = process_pixels(pil_image, rgba_transform, output_mode='RGBA')
 
-        # 5. Smooth edges (manual loops, but we can also use process_pixels with neighbor access)
+        # 5. Smooth edges (manual loops)
         smoothed = self._smooth_edges(rgba_img, visited)
 
+        # 6. Extract separate objects from the foreground (opaque pixels)
+        self._extract_objects(smoothed)
+
         self.removed_background_image = smoothed
+        return smoothed
+
+    def remove_background_simple(self, pil_image, bg_color=None, tolerance=30):
+        if not pil_image:
+            return None
+
+        if pil_image.mode not in ('RGB', 'RGBA'):
+            pil_image = pil_image.convert('RGB')
+
+        self.width, self.height = pil_image.size
+        if bg_color is None:
+            temp_img = pil_image.copy()
+            bg_color = temp_img.getpixel((0, 0))
+
+        result = Image.new('RGBA', (self.width, self.height))
+        source_pixels = pil_image.load()
+        target_pixels = result.load()
+
+        for y in range(self.height):
+            for x in range(self.width):
+                pixel = source_pixels[x, y]
+                if len(pixel) == 3:
+                    r, g, b = pixel
+                else:
+                    r, g, b = pixel[:3]
+                distance = abs(r - bg_color[0]) + abs(g - bg_color[1]) + abs(b - bg_color[2])
+                if distance <= tolerance:
+                    target_pixels[x, y] = (r, g, b, 0)
+                else:
+                    if len(pixel) == 3:
+                        target_pixels[x, y] = (r, g, b, 255)
+                    else:
+                        target_pixels[x, y] = pixel
+
+        self.removed_background_image = result
+        self._extract_objects(result)   # extract objects from the simple method too
         return self.removed_background_image
 
     def _detect_background_color(self, pil_image):
@@ -167,43 +206,61 @@ class BackgroundRemover:
                     result_pixels[x, y] = (r, g, b, alpha)
         return result
 
-    # The rest of the methods (remove_background_simple, get_stats) remain unchanged
-    # and are included below.
+    def _extract_objects(self, rgba_image):
+        """Extract separate objects from the foreground (alpha > 0)."""
+        width, height = rgba_image.size
+        pixels = rgba_image.load()
+        # Create binary mask: 1 = foreground (alpha > 0), 0 = background
+        fg_mask = [[0 for _ in range(width)] for _ in range(height)]
+        for y in range(height):
+            for x in range(width):
+                if pixels[x, y][3] > 0:
+                    fg_mask[y][x] = 1
 
-    def remove_background_simple(self, pil_image, bg_color=None, tolerance=30):
-        if not pil_image:
-            return None
+        # Connected component labeling (4-connectivity)
+        labels = [[0 for _ in range(width)] for _ in range(height)]
+        current_label = 1
+        objects = []
 
-        if pil_image.mode not in ('RGB', 'RGBA'):
-            pil_image = pil_image.convert('RGB')
+        for y in range(height):
+            for x in range(width):
+                if fg_mask[y][x] == 1 and labels[y][x] == 0:
+                    queue = [(y, x)]
+                    labels[y][x] = current_label
+                    min_x = max_x = x
+                    min_y = max_y = y
+                    sum_x = 0.0
+                    sum_y = 0.0
+                    pixel_count = 0
+                    while queue:
+                        cy, cx = queue.pop(0)
+                        min_x = min(min_x, cx)
+                        max_x = max(max_x, cx)
+                        min_y = min(min_y, cy)
+                        max_y = max(max_y, cy)
+                        sum_x += cx
+                        sum_y += cy
+                        pixel_count += 1
+                        for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
+                            ny, nx = cy + dy, cx + dx
+                            if 0 <= ny < height and 0 <= nx < width:
+                                if fg_mask[ny][nx] == 1 and labels[ny][nx] == 0:
+                                    labels[ny][nx] = current_label
+                                    queue.append((ny, nx))
+                    centroid_x = sum_x / pixel_count
+                    centroid_y = sum_y / pixel_count
+                    objects.append({
+                        'bbox': (min_x, min_y, max_x, max_y),
+                        'centroid': (centroid_x, centroid_y),
+                        'area': pixel_count
+                    })
+                    current_label += 1
 
-        self.width, self.height = pil_image.size
-        if bg_color is None:
-            temp_img = pil_image.copy()
-            bg_color = temp_img.getpixel((0, 0))
+        self.objects = objects
 
-        result = Image.new('RGBA', (self.width, self.height))
-        source_pixels = pil_image.load()
-        target_pixels = result.load()
-
-        for y in range(self.height):
-            for x in range(self.width):
-                pixel = source_pixels[x, y]
-                if len(pixel) == 3:
-                    r, g, b = pixel
-                else:
-                    r, g, b = pixel[:3]
-                distance = abs(r - bg_color[0]) + abs(g - bg_color[1]) + abs(b - bg_color[2])
-                if distance <= tolerance:
-                    target_pixels[x, y] = (r, g, b, 0)
-                else:
-                    if len(pixel) == 3:
-                        target_pixels[x, y] = (r, g, b, 255)
-                    else:
-                        target_pixels[x, y] = pixel
-
-        self.removed_background_image = result
-        return self.removed_background_image
+    def get_objects(self):
+        """Return list of detected objects (bounding boxes, centroids, areas)."""
+        return self.objects
 
     def get_stats(self):
         if not self.removed_background_image:
