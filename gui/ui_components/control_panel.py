@@ -3,7 +3,7 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 import qtawesome as qta
 import matplotlib
-matplotlib.use('Qt5Agg')                 # Set backend before importing pyplot
+matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -25,7 +25,6 @@ class HistogramCanvas(FigureCanvas):
         self.r_hist = None
         self.g_hist = None
         self.b_hist = None
-        self.lines = {}
 
     def set_histograms(self, r_hist, g_hist, b_hist):
         """Update the plot with new histograms."""
@@ -40,7 +39,6 @@ class HistogramCanvas(FigureCanvas):
         self.axes.grid(True, linestyle='--', alpha=0.5, color='gray')
 
         x = np.arange(256)
-        # Plot with semi-transparency
         self.axes.fill_between(x, 0, r_hist, color='red', alpha=0.4, label='Red')
         self.axes.fill_between(x, 0, g_hist, color='green', alpha=0.4, label='Green')
         self.axes.fill_between(x, 0, b_hist, color='blue', alpha=0.4, label='Blue')
@@ -61,29 +59,24 @@ def create_control_panel(app_instance):
     # Stacked widget for filter descriptions
     stacked_widget = QStackedWidget()
     stacked_widget.setObjectName("filter-stack")
-
-    # Grayscale description page
     grayscale_page = QWidget()
     grayscale_layout = QVBoxLayout(grayscale_page)
     grayscale_layout.addWidget(QLabel("Convert image to grayscale using the luminosity method."))
     grayscale_layout.addStretch()
     stacked_widget.addWidget(grayscale_page)
 
-    # Black & White description page
     bw_page = QWidget()
     bw_layout = QVBoxLayout(bw_page)
     bw_layout.addWidget(QLabel("Apply a threshold to create a binary black and white image.\nAdjust the threshold using the slider in the original image panel."))
     bw_layout.addStretch()
     stacked_widget.addWidget(bw_page)
 
-    # Background Removal description page
     bg_page = QWidget()
     bg_layout = QVBoxLayout(bg_page)
-    bg_layout.addWidget(QLabel("Remove background using color detection. The result will have transparency."))
+    bg_layout.addWidget(QLabel("Remove background using thresholding (grayscale → B&W). The result will have transparency."))
     bg_layout.addStretch()
     stacked_widget.addWidget(bg_page)
 
-    # Color Filters description page
     color_page = QWidget()
     color_layout = QVBoxLayout(color_page)
     color_layout.addWidget(QLabel("Apply a variety of grayscale‑based colour filters. Choose one from the buttons below."))
@@ -92,31 +85,39 @@ def create_control_panel(app_instance):
 
     layout.addWidget(stacked_widget)
 
-    # Stacked widget for filter‑specific controls (e.g., buttons)
+    # Stacked widget for filter‑specific controls
     controls_stack = QStackedWidget()
     controls_stack.setObjectName("filter-controls")
-    # Page 0: empty (for filters without extra controls)
     empty_widget = QWidget()
     controls_stack.addWidget(empty_widget)
-    # Page 1: color filter buttons
     color_buttons_widget = create_color_filter_buttons(app_instance)
     controls_stack.addWidget(color_buttons_widget)
-
-    controls_stack.setVisible(False)   # Hide initially (grayscale tab active)
-    layout.addWidget(controls_stack)   # (make sure it's added before setVisible)
+    layout.addWidget(controls_stack)
 
     # Histogram canvas (matplotlib)
     histogram = HistogramCanvas()
     histogram.setObjectName("histogram-widget")
     layout.addWidget(histogram)
 
+    # ----- NEW: Centroid Button -----
+    centroid_btn = QPushButton(" Show Centroids")
+    centroid_btn.setObjectName("centroid-btn")
+    centroid_btn.setCursor(Qt.PointingHandCursor)
+    centroid_btn.setEnabled(False)
+    try:
+        centroid_icon = qta.icon('fa5s.crosshairs', color='white')
+        centroid_btn.setIcon(centroid_icon)
+        centroid_btn.setIconSize(QSize(16, 16))
+    except:
+        centroid_btn.setText("🎯 Show Centroids")
+    centroid_btn.clicked.connect(app_instance.show_centroids)
+    layout.addWidget(centroid_btn)
+
     # Store references in the main app instance
     app_instance.histogram_widget = histogram
     app_instance.filter_stack = stacked_widget
     app_instance.filter_controls_stack = controls_stack
-
-    # Hide the controls stack initially (grayscale tab)
-    controls_stack.setVisible(False)
+    app_instance.centroid_btn = centroid_btn   # store for enabling/disabling
 
     return widget, (stacked_widget, controls_stack)
 

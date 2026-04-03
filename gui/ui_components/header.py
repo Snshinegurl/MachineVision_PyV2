@@ -118,7 +118,6 @@ def create_user_info():
 
     return user_info
 
-# ----- NEW: Filter Navigation Bar -----
 def create_filter_navbar(app_instance):
     """Create a tab bar for selecting the active filter."""
     widget = QWidget()
@@ -131,8 +130,10 @@ def create_filter_navbar(app_instance):
     tab_bar.addTab("Black & White")
     tab_bar.addTab("Background Removal")
     tab_bar.addTab("Color Filters")
-    tab_bar.addTab("Rotate")          
+    tab_bar.addTab("Rotate")
     tab_bar.addTab("Mirror")
+    tab_bar.addTab("Translate")          
+    tab_bar.addTab("Object Boxing")   
     tab_bar.setExpanding(True)
     tab_bar.setStyleSheet("""
         QTabBar::tab {
