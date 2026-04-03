@@ -1,4 +1,5 @@
 from PIL import Image
+from modules.pixel_processor import get_image_info   # using the module
 
 class ImageTranslator:
     def __init__(self):
@@ -7,12 +8,6 @@ class ImageTranslator:
         self.dy = 0
 
     def translate_image(self, pil_image, dx, dy):
-        """
-        Translate (shift) the image by dx (horizontal) and dy (vertical).
-        Positive dx = shift right, positive dy = shift down.
-        Empty areas become black (RGB) or transparent (RGBA).
-        Uses manual pixel loops – no PIL built‑in shift.
-        """
         if not pil_image:
             return None
 
@@ -21,7 +16,9 @@ class ImageTranslator:
             pil_image = pil_image.convert('RGB')
             original_mode = 'RGB'
 
-        width, height = pil_image.size
+        # Use pixel_processor to get image dimensions (demonstrates usage of the module)
+        width, height, channels, total_pixels, mode = get_image_info(pil_image)
+
         src = pil_image.load()
         result = Image.new(original_mode, (width, height))
         dst = result.load()
