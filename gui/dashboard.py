@@ -21,7 +21,7 @@ from modules.color_filter import ColorFilter
 from modules.rotate_converter import ImageRotator
 from modules.mirror_converter import ImageMirror
 from modules.translate_converter import ImageTranslator
-from modules.object_boxer import ObjectBoxer          # NEW
+from modules.object_boxer import ObjectBoxer
 
 class ImageProcessingApp(QMainWindow):
     def __init__(self):
@@ -40,13 +40,13 @@ class ImageProcessingApp(QMainWindow):
         self.image_rotator = ImageRotator()
         self.image_mirror = ImageMirror()
         self.image_translator = ImageTranslator()
-        self.object_boxer = ObjectBoxer()              # NEW
+        self.object_boxer = ObjectBoxer()
         self.current_filter = "custom_grayscale"
         self.current_rotation_angle = 0
         self.current_mirror_type = "horizontal"
         self.current_translate_dx = 0
         self.current_translate_dy = 0
-        self.current_object_threshold = 128            # NEW
+        self.current_object_threshold = 128
         self.centroid_btn = None
         self.setup_ui()
         self.apply_styles()
@@ -121,7 +121,7 @@ class ImageProcessingApp(QMainWindow):
             self.processed_placeholder, self.processed_image_label,
             self.processed_status, self.save_btn, self.crop_btn, self.process_btn,
             self.bw_threshold_widget, self.rotation_widget, self.mirror_widget,
-            self.translation_widget, self.object_boxing_widget          # NEW
+            self.translation_widget, self.object_boxing_widget
         ) = components
         self.add_crop_confirmation_controls(widget)
         self.original_image_label.installEventFilter(self)
@@ -192,7 +192,6 @@ class ImageProcessingApp(QMainWindow):
         """
 
     def on_filter_tab_changed(self, index):
-        # Extend filter map to include Object Boxing at index 7
         filter_map = {
             0: "custom_grayscale",
             1: "custom_bw",
@@ -201,7 +200,7 @@ class ImageProcessingApp(QMainWindow):
             4: "rotate",
             5: "mirror",
             6: "translate",
-            7: "object_boxing"          # NEW
+            7: "object_boxing"
         }
         self.current_filter = filter_map.get(index, "custom_grayscale")
 
@@ -213,13 +212,13 @@ class ImageProcessingApp(QMainWindow):
             self.mirror_widget.setVisible(self.current_filter == "mirror")
         if hasattr(self, 'translation_widget'):
             self.translation_widget.setVisible(self.current_filter == "translate")
-        if hasattr(self, 'object_boxing_widget'):          # NEW
+        if hasattr(self, 'object_boxing_widget'):
             self.object_boxing_widget.setVisible(self.current_filter == "object_boxing")
         if hasattr(self, 'filter_controls_stack'):
             self.filter_controls_stack.setVisible(index == 3)
             self.filter_controls_stack.setCurrentIndex(1 if index == 3 else 0)
         if hasattr(self, 'process_btn'):
-            self.process_btn.setEnabled(index != 3)        # disable only for color filters
+            self.process_btn.setEnabled(index != 3)
 
     def on_threshold_changed(self, value):
         if hasattr(self, 'bw_threshold_value_label'):
@@ -243,11 +242,29 @@ class ImageProcessingApp(QMainWindow):
             self.current_translate_dx = self.translate_dx_spin.value()
             self.current_translate_dy = self.translate_dy_spin.value()
 
-    # NEW: object threshold callback
     def on_object_threshold_changed(self, value):
         self.current_object_threshold = value
         if hasattr(self, 'object_threshold_value_label'):
             self.object_threshold_value_label.setText(str(value))
+
+    # ------------------- UPDATE OBJECT AREA -------------------
+    def update_object_area(self, pil_image, filter_name):
+        """Calculate and display the object area (foreground pixels)."""
+        if pil_image is None:
+            return
+        total_pixels = pil_image.width * pil_image.height
+        area = total_pixels   # default
+
+        if filter_name == "background_removal":
+            stats = self.black_white_converter.get_background_removal_stats()
+            if stats and 'opaque_pixels' in stats:
+                area = stats['opaque_pixels']
+        elif filter_name == "object_boxing":
+            area = self.object_boxer.object_area
+        # For other filters, area = total_pixels
+
+        if hasattr(self, 'object_area_card'):
+            self.object_area_card.findChild(QLabel, "card-value").setText(f"{area:,}")
 
     # ------------------- CENTROID METHOD -------------------
     def show_centroids(self):
@@ -498,6 +515,7 @@ class ImageProcessingApp(QMainWindow):
             self.processed_status.setObjectName("status-badge-ready")
             self.save_btn.setEnabled(True)
             self.update_histogram(processed)
+            self.update_object_area(processed, "color_filter")
             if hasattr(self, 'centroid_btn') and self.centroid_btn:
                 self.centroid_btn.setEnabled(True)
         except Exception as e:
@@ -534,6 +552,7 @@ class ImageProcessingApp(QMainWindow):
             self.save_btn.setEnabled(True)
             self.process_btn.setEnabled(True)
             self.update_histogram(processed)
+            self.update_object_area(processed, self.current_filter)   # <-- update object area
             if hasattr(self, 'centroid_btn') and self.centroid_btn:
                 self.centroid_btn.setEnabled(True)
             crop_info = " (cropped)" if self.crop_applied else ""
@@ -557,7 +576,7 @@ class ImageProcessingApp(QMainWindow):
                 dy = self.current_translate_dy
                 QMessageBox.information(self, "Success",
                     f"Image{crop_info} translated by ({dx}, {dy}) pixels!")
-            elif self.current_filter == "object_boxing":               # NEW
+            elif self.current_filter == "object_boxing":
                 threshold = self.current_object_threshold
                 QMessageBox.information(self, "Success",
                     f"Objects detected and boxed successfully!\nDetection threshold: {threshold}\nBackground set to gray.")
@@ -579,7 +598,6 @@ class ImageProcessingApp(QMainWindow):
             QMessageBox.warning(self, "Warning", "No processed image to save!")
             return
         file_dialog = QFileDialog()
-        # For background removal and object boxing, PNG is recommended (supports transparency)
         if self.current_filter in ("background_removal", "object_boxing"):
             file_path, _ = file_dialog.getSaveFileName(self, "Save Processed Image", "",
                 "PNG Image (*.png);;All Files (*)")
@@ -626,8 +644,10 @@ class ImageProcessingApp(QMainWindow):
             return self.image_mirror.mirror(image, self.current_mirror_type)
         elif filter_name == "translate":
             return self.image_translator.translate_image(image, self.current_translate_dx, self.current_translate_dy)
-        elif filter_name == "object_boxing":                         # NEW
-            return self.object_boxer.box_objects(image, threshold=self.current_object_threshold)
+        elif filter_name == "object_boxing":
+            img, area = self.object_boxer.box_objects(image, threshold=self.current_object_threshold)
+            self.object_boxer.object_area = area
+            return img
         else:
             return self.grayscale_converter.convert_manual_loop(image)
 

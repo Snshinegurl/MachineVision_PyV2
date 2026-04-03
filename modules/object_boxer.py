@@ -4,13 +4,13 @@ from modules.grayscale_converter import GrayscaleConverter
 class ObjectBoxer:
     def __init__(self):
         self.result_image = None
+        self.object_area = 0          # NEW: store total object pixels
         self.threshold = 128
 
     def box_objects(self, pil_image, threshold=128):
         """
-        Detect objects (connected components) in a grayscale image using a threshold,
-        draw bounding boxes around them, and set background to grayscale.
-        Returns an RGB image with boxes drawn and background grayed out.
+        Detect objects (connected components), draw bounding boxes,
+        set background to grayscale, and return (image, object_area).
         """
         # Convert to grayscale using our module if needed
         if pil_image.mode != 'L':
@@ -22,15 +22,15 @@ class ObjectBoxer:
         self.threshold = threshold
         width, height = gray_img.size
 
-        # 1. Create binary mask: 1 for foreground (object), 0 for background
+        # 1. Binary mask: 1 for foreground, 0 for background
         pixels = gray_img.load()
         mask = [[0 for _ in range(width)] for _ in range(height)]
         for y in range(height):
             for x in range(width):
-                val = pixels[x, y][0]  # grayscale value
+                val = pixels[x, y][0]
                 mask[y][x] = 1 if val >= threshold else 0
 
-        # 2. Connected component labeling (4-connectivity) using BFS
+        # 2. Connected component labeling (4‑connectivity)
         labels = [[0 for _ in range(width)] for _ in range(height)]
         current_label = 1
         for y in range(height):
@@ -48,12 +48,14 @@ class ObjectBoxer:
                                     queue.append((ny, nx))
                     current_label += 1
 
-        # 3. Compute bounding boxes for each label
+        # 3. Compute bounding boxes and count total object pixels
         boxes = {}
+        total_object_pixels = 0
         for y in range(height):
             for x in range(width):
                 label = labels[y][x]
                 if label > 0:
+                    total_object_pixels += 1
                     if label not in boxes:
                         boxes[label] = {'min_x': x, 'max_x': x, 'min_y': y, 'max_y': y}
                     else:
@@ -62,38 +64,29 @@ class ObjectBoxer:
                         boxes[label]['min_y'] = min(boxes[label]['min_y'], y)
                         boxes[label]['max_y'] = max(boxes[label]['max_y'], y)
 
-        # 4. Create result image: start with a grayscale version of the original
-        #    Then replace background with grayscale (already grayscale), but we need RGB
-        #    Actually, we want original colors inside boxes, grayscale outside.
-        #    So we'll convert the original image to RGB (keeping colors), then
-        #    for background pixels we compute grayscale value using the converter.
+        self.object_area = total_object_pixels
+
+        # 4. Build result image: keep original colours inside objects,
+        #    background becomes grayscale (using the same luminosity formula)
         if pil_image.mode != 'RGB':
             result = pil_image.convert('RGB')
         else:
             result = pil_image.copy()
         result_pixels = result.load()
 
-        # Use GrayscaleConverter to get the grayscale value for each background pixel
-        converter = GrayscaleConverter()
-        # Pre‑compute grayscale version for speed (optional)
-        # For each background pixel, compute grayscale once.
         for y in range(height):
             for x in range(width):
                 if labels[y][x] == 0:  # background
-                    # Get original pixel (RGB)
-                    orig_pixel = result_pixels[x, y]
-                    # Compute grayscale using the same method as converter
-                    gray_val = int(0.299 * orig_pixel[0] + 0.587 * orig_pixel[1] + 0.114 * orig_pixel[2])
-                    result_pixels[x, y] = (gray_val, gray_val, gray_val)
+                    orig = result_pixels[x, y]
+                    gray = int(0.299 * orig[0] + 0.587 * orig[1] + 0.114 * orig[2])
+                    result_pixels[x, y] = (gray, gray, gray)
 
-        # 5. Draw bounding boxes (red outline)
+        # 5. Draw red bounding boxes
         draw = ImageDraw.Draw(result)
         for label, bbox in boxes.items():
-            x1 = bbox['min_x']
-            y1 = bbox['min_y']
-            x2 = bbox['max_x']
-            y2 = bbox['max_y']
-            draw.rectangle([x1, y1, x2, y2], outline='red', width=2)
+            draw.rectangle([bbox['min_x'], bbox['min_y'],
+                            bbox['max_x'], bbox['max_y']],
+                           outline='red', width=2)
 
         self.result_image = result
-        return result
+        return result, total_object_pixels   # NEW: return area as well
