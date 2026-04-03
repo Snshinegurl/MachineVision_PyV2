@@ -162,6 +162,17 @@ class ImageProcessingApp(QMainWindow):
         crop_confirmation_layout.addStretch()
         card_layout.addWidget(self.crop_confirmation_widget)
 
+    def update_binary_projections(self):
+        """Automatically generate binary image from current original/cropped image and update projection graphs."""
+        source_image = self.cropped_image if self.crop_applied and self.cropped_image else self.original_image
+        if source_image is None:
+            return
+        threshold = getattr(self, 'bw_threshold_slider', None)
+        thresh_val = threshold.value() if threshold else 128
+        binary_img = self.black_white_converter.convert_to_black_white(source_image, threshold=thresh_val)
+        if binary_img and hasattr(self, 'projection_widget'):
+            self.projection_widget.update_projections(binary_img)
+
     def create_control_panel(self):
         from gui.ui_components.control_panel import create_control_panel
         widget, components = create_control_panel(self)
@@ -224,6 +235,7 @@ class ImageProcessingApp(QMainWindow):
         if hasattr(self, 'bw_threshold_value_label'):
             self.bw_threshold_value_label.setText(str(value))
         self.black_white_converter.threshold = value
+        self.update_binary_projections()
 
     def on_rotation_changed(self, value):
         self.current_rotation_angle = value
@@ -459,6 +471,7 @@ class ImageProcessingApp(QMainWindow):
         self.update_histogram(cropped_pil)
         self.update_image_info_after_crop(cropped_pil)
         self.cancel_cropping()
+        self.update_binary_projections()
         QMessageBox.information(self, "Success",
             f"Image cropped to {scaled_rect.width()} x {scaled_rect.height()} pixels\n"
             f"The cropped image is now ready for processing.")
@@ -515,6 +528,7 @@ class ImageProcessingApp(QMainWindow):
                 self.update_info_cards(image_info)
                 self.status_value.setText("Image Uploaded")
                 self.status_value.setObjectName("status-value-uploaded")
+                self.update_binary_projections()
                 self.apply_styles()
                 self.crop_btn.setEnabled(True)
                 if self.is_cropping:
