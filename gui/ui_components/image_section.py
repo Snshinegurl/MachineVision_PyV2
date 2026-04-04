@@ -9,7 +9,7 @@ def create_image_processing_section(app_instance):
     layout.setSpacing(24)
     layout.setContentsMargins(0, 0, 0, 0)
 
-    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, convolution_widget = create_image_card(
+    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget = create_image_card(
         "Original Image", "file-upload", True, app_instance
     )
     processed_card, processed_placeholder, processed_image_label, processed_status, save_btn, process_btn = create_image_card(
@@ -24,7 +24,7 @@ def create_image_processing_section(app_instance):
         processed_placeholder, processed_image_label,
         processed_status, save_btn, crop_btn, process_btn,
         threshold_widget, rotation_widget, mirror_widget,
-        translation_widget, object_boxing_widget, convolution_widget
+        translation_widget, object_boxing_widget
     )
     return widget, components
 
@@ -36,13 +36,13 @@ def create_image_card(title, icon, is_original, app_instance):
     layout.setContentsMargins(0, 0, 0, 0)
 
     if is_original:
-        header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, convolution_widget = create_card_header(
+        header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget = create_card_header(
             title, icon, is_original, app_instance
         )
         layout.addWidget(header)
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
-        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, convolution_widget
+        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget
     else:
         header, processed_status, save_btn, process_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
@@ -97,20 +97,14 @@ def create_card_header(title, icon, is_original, app_instance):
         object_boxing_widget.setVisible(False)
         app_instance.object_boxing_widget = object_boxing_widget
 
-        # Convolution widget – initially hidden
-        convolution_widget = create_convolution_widget(app_instance)
-        convolution_widget.setVisible(False)
-        app_instance.convolution_widget = convolution_widget
-
         header_layout.addWidget(top_row)
         header_layout.addWidget(threshold_widget)
         header_layout.addWidget(rotation_widget)
         header_layout.addWidget(mirror_widget)
         header_layout.addWidget(translation_widget)
         header_layout.addWidget(object_boxing_widget)
-        header_layout.addWidget(convolution_widget)
 
-        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, convolution_widget
+        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget
     else:
         right_widget, processed_status, save_btn, process_btn = create_processed_header_right(app_instance)
         top_layout.addWidget(right_widget)
@@ -438,53 +432,6 @@ def create_object_boxing_widget(app_instance):
 
     app_instance.object_threshold_slider = threshold_slider
     app_instance.object_threshold_value_label = threshold_value_label
-
-    return widget
-
-def create_convolution_widget(app_instance):
-    """Widget for convolution filter selection and custom kernel input."""
-    widget = QWidget()
-    widget.setObjectName("convolution-widget")
-    layout = QVBoxLayout(widget)
-    layout.setContentsMargins(0, 8, 0, 0)
-    layout.setSpacing(8)
-
-    # Filter type dropdown
-    filter_label = QLabel("Convolution Filter:")
-    filter_label.setObjectName("threshold-label")
-    filter_combo = QComboBox()
-    filter_combo.addItems([
-        "Smoothing (Average)",
-        "Gaussian Blur",
-        "Sharpening",
-        "Mean Removal (High-pass)",
-        "Emboss",
-        "Custom (3x3)"
-    ])
-    filter_combo.setObjectName("convolution-filter-combo")
-    app_instance.conv_filter_combo = filter_combo
-
-    # Custom kernel input (initially hidden)
-    custom_label = QLabel("Custom Kernel (9 numbers separated by spaces):")
-    custom_label.setObjectName("threshold-label")
-    custom_input = QLineEdit()
-    custom_input.setPlaceholderText("e.g., 0 -1 0 -1 5 -1 0 -1 0")
-    custom_input.setObjectName("custom-kernel-input")
-    custom_input.hide()
-    custom_label.hide()
-    app_instance.conv_custom_input = custom_input
-
-    # Connect dropdown to show/hide custom input
-    def on_filter_changed(index):
-        is_custom = (filter_combo.currentText() == "Custom (3x3)")
-        custom_label.setVisible(is_custom)
-        custom_input.setVisible(is_custom)
-    filter_combo.currentIndexChanged.connect(on_filter_changed)
-
-    layout.addWidget(filter_label)
-    layout.addWidget(filter_combo)
-    layout.addWidget(custom_label)
-    layout.addWidget(custom_input)
 
     return widget
 

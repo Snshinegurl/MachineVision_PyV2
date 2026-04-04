@@ -1,5 +1,6 @@
 from PIL import Image
 import math
+from modules.pixel_processor import process_pixels, get_image_info
 
 class ImageRotator:
     def __init__(self):
@@ -10,6 +11,7 @@ class ImageRotator:
         """
         Rotate a PIL image around its center by the given angle (degrees),
         keeping the same dimensions. Empty areas become black (RGB) or transparent (RGBA).
+        Uses pixel_processor to access all source pixels.
         """
         if not pil_image:
             return None
@@ -20,19 +22,30 @@ class ImageRotator:
             pil_image = pil_image.convert('RGB')
             original_mode = 'RGB'
 
+        # Get image dimensions via pixel_processor
+        width, height, _, _, _ = get_image_info(pil_image)
         rads = math.radians(angle)
-        width, height = pil_image.size
         midx, midy = width // 2, height // 2
 
-        # Create result image
-        result = Image.new(original_mode, (width, height))
-        src_pixels = pil_image.load()
-        dst_pixels = result.load()
+        # ---- Use process_pixels to extract all source pixels into a 2D list ----
+        src_pixels_2d = []
 
-        # Inverse mapping – for each destination pixel find source pixel
+        def collect_pixel(x, y, pixel):
+            # This callback is called for each pixel in order (row by row)
+            if y >= len(src_pixels_2d):
+                src_pixels_2d.append([])
+            src_pixels_2d[y].append(pixel)
+            return pixel  # dummy return, we don't use the output image
+
+        # Run process_pixels (it iterates over all pixels and calls collect_pixel)
+        process_pixels(pil_image, collect_pixel, output_mode=original_mode)
+
+        # ---- Create output image and fill using inverse mapping ----
+        result = Image.new(original_mode, (width, height))
+        dst_pixels = result.load()  # writing directly is still needed
+
         for y in range(height):
             for x in range(width):
-                # Translate to centre coordinates
                 dx = x - midx
                 dy = y - midy
 
@@ -44,7 +57,7 @@ class ImageRotator:
                 src_y_round = int(round(src_y))
 
                 if 0 <= src_x_round < width and 0 <= src_y_round < height:
-                    dst_pixels[x, y] = src_pixels[src_x_round, src_y_round]
+                    dst_pixels[x, y] = src_pixels_2d[src_y_round][src_x_round]
                 else:
                     # Fill empty area
                     if original_mode == 'RGBA':

@@ -8,9 +8,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
 from modules.color_filter import ColorFilter
+from modules.convolution_filters import ConvolutionFilter
 
+# ---------- Histogram Canvas ----------
 class HistogramCanvas(FigureCanvas):
-    """Matplotlib canvas for RGB histograms."""
     def __init__(self, parent=None):
         self.fig = Figure(figsize=(5, 2.5), dpi=100, facecolor='#1F2937')
         super().__init__(self.fig)
@@ -38,15 +39,13 @@ class HistogramCanvas(FigureCanvas):
         self.axes.set_xlim(0, 255)
         self.draw()
 
+# ---------- Projection Widget ----------
 class ProjectionWidget(QWidget):
-    """Widget to display horizontal and vertical projection graphs for binary images."""
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
-
-        # Horizontal projection (row sums)
         self.fig_h = Figure(figsize=(3, 2.5), dpi=100, facecolor='#1F2937')
         self.canvas_h = FigureCanvas(self.fig_h)
         self.ax_h = self.fig_h.add_subplot(111)
@@ -56,8 +55,6 @@ class ProjectionWidget(QWidget):
         self.ax_h.set_ylabel('White Pixel Count', color='white')
         self.ax_h.set_title('Horizontal Projection', color='white')
         self.ax_h.grid(True, linestyle='--', alpha=0.5, color='gray')
-
-        # Vertical projection (column sums)
         self.fig_v = Figure(figsize=(3, 2.5), dpi=100, facecolor='#1F2937')
         self.canvas_v = FigureCanvas(self.fig_v)
         self.ax_v = self.fig_v.add_subplot(111)
@@ -67,26 +64,18 @@ class ProjectionWidget(QWidget):
         self.ax_v.set_ylabel('White Pixel Count', color='white')
         self.ax_v.set_title('Vertical Projection', color='white')
         self.ax_v.grid(True, linestyle='--', alpha=0.5, color='gray')
-
         layout.addWidget(self.canvas_h)
         layout.addWidget(self.canvas_v)
 
     def update_projections(self, binary_image):
-        """
-        Compute and display projections from a binary PIL image (mode 'L' or 'RGB' with equal channels).
-        binary_image is expected to be a binary image (0 for black, 255 for white).
-        """
         if binary_image is None:
             return
         width, height = binary_image.size
-        # Convert to grayscale if needed
         if binary_image.mode != 'L':
             gray = binary_image.convert('L')
         else:
             gray = binary_image
         pixels = gray.load()
-
-        # Manual row sums (horizontal projection)
         row_sums = [0] * height
         for y in range(height):
             total = 0
@@ -94,8 +83,6 @@ class ProjectionWidget(QWidget):
                 if pixels[x, y] >= 128:
                     total += 1
             row_sums[y] = total
-
-        # Manual column sums (vertical projection)
         col_sums = [0] * width
         for x in range(width):
             total = 0
@@ -103,8 +90,6 @@ class ProjectionWidget(QWidget):
                 if pixels[x, y] >= 128:
                     total += 1
             col_sums[x] = total
-
-        # Update horizontal graph
         self.ax_h.clear()
         self.ax_h.set_facecolor('#1F2937')
         self.ax_h.tick_params(colors='white')
@@ -115,8 +100,6 @@ class ProjectionWidget(QWidget):
         self.ax_h.bar(range(height), row_sums, color='#4F46E5', alpha=0.7)
         self.ax_h.set_xlim(0, height-1)
         self.canvas_h.draw()
-
-        # Update vertical graph
         self.ax_v.clear()
         self.ax_v.set_facecolor('#1F2937')
         self.ax_v.tick_params(colors='white')
@@ -128,6 +111,135 @@ class ProjectionWidget(QWidget):
         self.ax_v.set_xlim(0, width-1)
         self.canvas_v.draw()
 
+# ---------- Convolution Controls ----------
+class ConvolutionControls(QWidget):
+    def __init__(self, app_instance, parent=None):
+        super().__init__(parent)
+        self.app = app_instance
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        preset_label = QLabel("FILTER PRESET")
+        preset_label.setObjectName("panel-subtitle")
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems([
+            "Smoothing (Average)",
+            "Gaussian Blur",
+            "Sharpening",
+            "Mean Removal (High-pass)",
+            "Emboss",
+            "Custom kernel"
+        ])
+        self.preset_combo.currentTextChanged.connect(self.on_preset_changed)
+        layout.addWidget(preset_label)
+        layout.addWidget(self.preset_combo)
+
+        self.kernel_group = QGroupBox("KERNEL VALUES (3×3)")
+        kernel_layout = QGridLayout(self.kernel_group)
+        kernel_layout.setSpacing(8)
+        self.kernel_entries = [[None for _ in range(3)] for _ in range(3)]
+        for i in range(3):
+            for j in range(3):
+                entry = QLineEdit()
+                entry.setAlignment(Qt.AlignRight)
+                entry.setText("0.0")
+                entry.setFixedWidth(80)
+                entry.textChanged.connect(self.update_kernel_sum)
+                kernel_layout.addWidget(entry, i, j)
+                self.kernel_entries[i][j] = entry
+
+        # Default identity kernel
+        self.kernel_entries[0][0].setText("0.0")
+        self.kernel_entries[0][1].setText("0.0")
+        self.kernel_entries[0][2].setText("0.0")
+        self.kernel_entries[1][0].setText("0.0")
+        self.kernel_entries[1][1].setText("1.0")
+        self.kernel_entries[1][2].setText("0.0")
+        self.kernel_entries[2][0].setText("0.0")
+        self.kernel_entries[2][1].setText("0.0")
+        self.kernel_entries[2][2].setText("0.0")
+        layout.addWidget(self.kernel_group)
+
+        sum_layout = QHBoxLayout()
+        sum_layout.addStretch()
+        sum_label = QLabel("Kernel sum:")
+        sum_label.setObjectName("threshold-label")
+        self.kernel_sum_value = QLabel("0.0000")
+        self.kernel_sum_value.setObjectName("centroid-value")
+        sum_layout.addWidget(sum_label)
+        sum_layout.addWidget(self.kernel_sum_value)
+        sum_layout.addStretch()
+        layout.addLayout(sum_layout)
+
+        self.kernel_group.setEnabled(False)
+        self.update_kernel_sum()
+        app_instance.conv_controls = self
+
+    def on_preset_changed(self, text):
+        is_custom = (text == "Custom kernel")
+        self.kernel_group.setEnabled(is_custom)
+        if not is_custom:
+            kernel = self.get_preset_kernel(text)
+            if kernel:
+                for i in range(3):
+                    for j in range(3):
+                        self.kernel_entries[i][j].setText(f"{kernel[i][j]:.6f}")
+                for row in self.kernel_entries:
+                    for entry in row:
+                        entry.setReadOnly(True)
+            else:
+                for i in range(3):
+                    for j in range(3):
+                        self.kernel_entries[i][j].setText("0.0")
+                self.kernel_entries[1][1].setText("1.0")
+                for row in self.kernel_entries:
+                    for entry in row:
+                        entry.setReadOnly(True)
+        else:
+            for row in self.kernel_entries:
+                for entry in row:
+                    entry.setReadOnly(False)
+            self.update_kernel_sum()
+
+    def get_preset_kernel(self, preset_name):
+        if preset_name == "Smoothing (Average)":
+            return ConvolutionFilter.get_smoothing_kernel(3)
+        elif preset_name == "Gaussian Blur":
+            return ConvolutionFilter.get_gaussian_kernel(3, sigma=1.0)
+        elif preset_name == "Sharpening":
+            return ConvolutionFilter.get_sharpening_kernel()
+        elif preset_name == "Mean Removal (High-pass)":
+            return ConvolutionFilter.get_mean_removal_kernel()
+        elif preset_name == "Emboss":
+            return ConvolutionFilter.get_emboss_kernel()
+        else:
+            return None
+
+    def update_kernel_sum(self):
+        total = 0.0
+        for i in range(3):
+            for j in range(3):
+                try:
+                    val = float(self.kernel_entries[i][j].text())
+                except ValueError:
+                    val = 0.0
+                total += val
+        self.kernel_sum_value.setText(f"{total:.4f}")
+
+    def get_custom_kernel(self):
+        kernel = []
+        for i in range(3):
+            row = []
+            for j in range(3):
+                try:
+                    row.append(float(self.kernel_entries[i][j].text()))
+                except ValueError:
+                    return None
+            kernel.append(row)
+        return kernel
+
+# ---------- Main control panel creation ----------
 def create_control_panel(app_instance):
     widget = QWidget()
     widget.setObjectName("control-panel")
@@ -138,91 +250,33 @@ def create_control_panel(app_instance):
     header = create_panel_header()
     layout.addWidget(header)
 
-    # Stacked widget for filter descriptions
-    stacked_widget = QStackedWidget()
-    stacked_widget.setObjectName("filter-stack")
-    # Description pages
-    grayscale_page = QWidget()
-    grayscale_layout = QVBoxLayout(grayscale_page)
-    grayscale_layout.addWidget(QLabel("Convert image to grayscale using the luminosity method."))
-    grayscale_layout.addStretch()
-    stacked_widget.addWidget(grayscale_page)
-
-    bw_page = QWidget()
-    bw_layout = QVBoxLayout(bw_page)
-    bw_layout.addWidget(QLabel("Apply a threshold to create a binary black and white image.\nAdjust the threshold using the slider in the original image panel."))
-    bw_layout.addStretch()
-    stacked_widget.addWidget(bw_page)
-
-    bg_page = QWidget()
-    bg_layout = QVBoxLayout(bg_page)
-    bg_layout.addWidget(QLabel("Remove background using color detection. The result will have transparency."))
-    bg_layout.addStretch()
-    stacked_widget.addWidget(bg_page)
-
-    color_page = QWidget()
-    color_layout = QVBoxLayout(color_page)
-    color_layout.addWidget(QLabel("Apply a variety of grayscale‑based colour filters. Choose one from the buttons below."))
-    color_layout.addStretch()
-    stacked_widget.addWidget(color_page)
-
-    rotate_page = QWidget()
-    rotate_layout = QVBoxLayout(rotate_page)
-    rotate_layout.addWidget(QLabel("Rotate the image by an angle (0–360°). Empty areas become black."))
-    rotate_layout.addStretch()
-    stacked_widget.addWidget(rotate_page)
-
-    mirror_page = QWidget()
-    mirror_layout = QVBoxLayout(mirror_page)
-    mirror_layout.addWidget(QLabel("Mirror the image horizontally or vertically."))
-    mirror_layout.addStretch()
-    stacked_widget.addWidget(mirror_page)
-
-    translate_page = QWidget()
-    translate_layout = QVBoxLayout(translate_page)
-    translate_layout.addWidget(QLabel("Translate (shift) the image by X and Y pixels. Empty areas become black."))
-    translate_layout.addStretch()
-    stacked_widget.addWidget(translate_page)
-
-    object_boxing_page = QWidget()
-    object_boxing_layout = QVBoxLayout(object_boxing_page)
-    object_boxing_layout.addWidget(QLabel("Detect and draw bounding boxes around objects using a binary threshold."))
-    object_boxing_layout.addStretch()
-    stacked_widget.addWidget(object_boxing_page)
-
-    layout.addWidget(stacked_widget)
-
-    # Stacked widget for filter‑specific controls (color filter buttons)
+    # Controls stack: page 0 = empty, page 1 = color filter buttons, page 2 = convolution controls
     controls_stack = QStackedWidget()
     controls_stack.setObjectName("filter-controls")
-    empty_widget = QWidget()
-    controls_stack.addWidget(empty_widget)
-    color_buttons_widget = create_color_filter_buttons(app_instance)
-    controls_stack.addWidget(color_buttons_widget)
+    controls_stack.addWidget(QWidget())  # empty
+    controls_stack.addWidget(create_color_filter_buttons(app_instance))
+    controls_stack.addWidget(ConvolutionControls(app_instance))
+    controls_stack.setVisible(False)   # initially hidden
     layout.addWidget(controls_stack)
 
-    # Histogram widget
+    # Histogram, projection, centroid
     histogram = HistogramCanvas()
     histogram.setObjectName("histogram-widget")
     layout.addWidget(histogram)
 
-    # Projection widget (always visible, updates automatically)
     projection_widget = ProjectionWidget()
     projection_widget.setObjectName("projection-widget")
     layout.addWidget(projection_widget)
 
-    # ---------- CENTROID SECTION ----------
     centroid_widget = QWidget()
     centroid_layout = QVBoxLayout(centroid_widget)
     centroid_layout.setContentsMargins(0, 16, 0, 0)
     centroid_layout.setSpacing(8)
-
     centroid_label = QLabel("Centroid Coordinates:")
     centroid_label.setObjectName("panel-subtitle")
     centroid_value = QLabel("Not computed")
     centroid_value.setObjectName("centroid-value")
     centroid_value.setWordWrap(True)
-
     centroid_btn = QPushButton(" Show Centroid")
     centroid_btn.setCursor(Qt.PointingHandCursor)
     centroid_btn.setObjectName("centroid-btn")
@@ -231,29 +285,27 @@ def create_control_panel(app_instance):
     except:
         centroid_btn.setText("🎯 Show Centroid")
     centroid_btn.clicked.connect(app_instance.show_centroids)
-    centroid_btn.setEnabled(False)   # initially disabled
-
+    centroid_btn.setEnabled(False)
     centroid_layout.addWidget(centroid_label)
     centroid_layout.addWidget(centroid_value)
     centroid_layout.addWidget(centroid_btn)
     layout.addWidget(centroid_widget)
 
-    # Store references in the main app instance
+    # Store references
     app_instance.histogram_widget = histogram
-    app_instance.filter_stack = stacked_widget
+    app_instance.filter_stack = None
     app_instance.filter_controls_stack = controls_stack
     app_instance.projection_widget = projection_widget
     app_instance.centroid_label = centroid_value
     app_instance.centroid_btn = centroid_btn
 
-    return widget, (stacked_widget, controls_stack)
+    return widget, (None, controls_stack)
 
 def create_color_filter_buttons(app_instance):
     widget = QWidget()
     layout = QGridLayout(widget)
     layout.setSpacing(10)
     layout.setContentsMargins(0, 10, 0, 0)
-
     filters = [
         ("Blue Ocean", ColorFilter.blue_ocean),
         ("Green Forest", ColorFilter.green_forest),
@@ -291,7 +343,7 @@ def create_panel_header():
     header_layout.setSpacing(8)
     title = QLabel("Processing Controls")
     title.setObjectName("panel-title")
-    subtitle = QLabel("Select a filter tab above to see its description")
+    subtitle = QLabel("Select a filter tab above to access its controls")
     subtitle.setObjectName("panel-subtitle")
     header_layout.addWidget(title)
     header_layout.addWidget(subtitle)
