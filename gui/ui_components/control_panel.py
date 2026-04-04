@@ -166,9 +166,33 @@ def create_control_panel(app_instance):
     color_layout.addStretch()
     stacked_widget.addWidget(color_page)
 
+    rotate_page = QWidget()
+    rotate_layout = QVBoxLayout(rotate_page)
+    rotate_layout.addWidget(QLabel("Rotate the image by an angle (0–360°). Empty areas become black."))
+    rotate_layout.addStretch()
+    stacked_widget.addWidget(rotate_page)
+
+    mirror_page = QWidget()
+    mirror_layout = QVBoxLayout(mirror_page)
+    mirror_layout.addWidget(QLabel("Mirror the image horizontally or vertically."))
+    mirror_layout.addStretch()
+    stacked_widget.addWidget(mirror_page)
+
+    translate_page = QWidget()
+    translate_layout = QVBoxLayout(translate_page)
+    translate_layout.addWidget(QLabel("Translate (shift) the image by X and Y pixels. Empty areas become black."))
+    translate_layout.addStretch()
+    stacked_widget.addWidget(translate_page)
+
+    object_boxing_page = QWidget()
+    object_boxing_layout = QVBoxLayout(object_boxing_page)
+    object_boxing_layout.addWidget(QLabel("Detect and draw bounding boxes around objects using a binary threshold."))
+    object_boxing_layout.addStretch()
+    stacked_widget.addWidget(object_boxing_page)
+
     layout.addWidget(stacked_widget)
 
-    # Stacked widget for filter‑specific controls
+    # Stacked widget for filter‑specific controls (color filter buttons)
     controls_stack = QStackedWidget()
     controls_stack.setObjectName("filter-controls")
     empty_widget = QWidget()
@@ -187,11 +211,40 @@ def create_control_panel(app_instance):
     projection_widget.setObjectName("projection-widget")
     layout.addWidget(projection_widget)
 
-    # Store references
+    # ---------- CENTROID SECTION ----------
+    centroid_widget = QWidget()
+    centroid_layout = QVBoxLayout(centroid_widget)
+    centroid_layout.setContentsMargins(0, 16, 0, 0)
+    centroid_layout.setSpacing(8)
+
+    centroid_label = QLabel("Centroid Coordinates:")
+    centroid_label.setObjectName("panel-subtitle")
+    centroid_value = QLabel("Not computed")
+    centroid_value.setObjectName("centroid-value")
+    centroid_value.setWordWrap(True)
+
+    centroid_btn = QPushButton(" Show Centroid")
+    centroid_btn.setCursor(Qt.PointingHandCursor)
+    centroid_btn.setObjectName("centroid-btn")
+    try:
+        centroid_btn.setIcon(qta.icon('fa5s.crosshairs', color='white'))
+    except:
+        centroid_btn.setText("🎯 Show Centroid")
+    centroid_btn.clicked.connect(app_instance.show_centroids)
+    centroid_btn.setEnabled(False)   # initially disabled
+
+    centroid_layout.addWidget(centroid_label)
+    centroid_layout.addWidget(centroid_value)
+    centroid_layout.addWidget(centroid_btn)
+    layout.addWidget(centroid_widget)
+
+    # Store references in the main app instance
     app_instance.histogram_widget = histogram
     app_instance.filter_stack = stacked_widget
     app_instance.filter_controls_stack = controls_stack
     app_instance.projection_widget = projection_widget
+    app_instance.centroid_label = centroid_value
+    app_instance.centroid_btn = centroid_btn
 
     return widget, (stacked_widget, controls_stack)
 

@@ -524,5 +524,23 @@ def get_app_styles():
             border: 1px solid #374151;
         }
 
+        #centroid-btn {
+            background-color: #8B5CF6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        #centroid-btn:hover {
+            background-color: #7C3AED;
+        }
+        #centroid-value {
+            font-size: 14px;
+            font-family: monospace;
+            color: #10B981;
+        }
+
 
     """

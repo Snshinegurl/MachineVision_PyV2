@@ -48,6 +48,7 @@ class ImageProcessingApp(QMainWindow):
         self.current_translate_dy = 0
         self.current_object_threshold = 128
         self.centroid_btn = None
+        self.centroid_label = None
         self.setup_ui()
         self.apply_styles()
 
@@ -163,7 +164,6 @@ class ImageProcessingApp(QMainWindow):
         card_layout.addWidget(self.crop_confirmation_widget)
 
     def update_binary_projections(self):
-        """Automatically generate binary image from current original/cropped image and update projection graphs."""
         source_image = self.cropped_image if self.crop_applied and self.cropped_image else self.original_image
         if source_image is None:
             return
@@ -178,6 +178,7 @@ class ImageProcessingApp(QMainWindow):
         widget, components = create_control_panel(self)
         self.filter_stack = components[0]
         self.filter_controls_stack = components[1]
+        # centroid_btn and centroid_label are already stored inside create_control_panel
         return widget
 
     def get_scrollbar_style(self):
@@ -200,6 +201,7 @@ class ImageProcessingApp(QMainWindow):
             #centroid-btn { background-color: #8B5CF6; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 600; font-size: 14px; margin-top: 8px; }
             #centroid-btn:hover:enabled { background-color: #7C3AED; transform: translateY(-2px); }
             #centroid-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+            #centroid-value { font-size: 14px; font-family: monospace; color: #10B981; }
         """
 
     def on_filter_tab_changed(self, index):
@@ -259,22 +261,17 @@ class ImageProcessingApp(QMainWindow):
         if hasattr(self, 'object_threshold_value_label'):
             self.object_threshold_value_label.setText(str(value))
 
-    # ------------------- UPDATE OBJECT AREA -------------------
     def update_object_area(self, pil_image, filter_name):
-        """Calculate and display the object area (foreground pixels)."""
         if pil_image is None:
             return
         total_pixels = pil_image.width * pil_image.height
-        area = total_pixels   # default
-
+        area = total_pixels
         if filter_name == "background_removal":
             stats = self.black_white_converter.get_background_removal_stats()
             if stats and 'opaque_pixels' in stats:
                 area = stats['opaque_pixels']
         elif filter_name == "object_boxing":
             area = self.object_boxer.object_area
-        # For other filters, area = total_pixels
-
         if hasattr(self, 'object_area_card'):
             self.object_area_card.findChild(QLabel, "card-value").setText(f"{area:,}")
 
@@ -318,6 +315,8 @@ class ImageProcessingApp(QMainWindow):
             self.processed_image_label.setPixmap(scaled_pixmap)
 
             msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})\n\nDetected Objects: {len(self.object_boxer.objects)}\n" + "\n".join(coord_msgs)
+            if self.centroid_label:
+                self.centroid_label.setText(msg.replace('\n', '; ')[:100])  # show truncated in label
             QMessageBox.information(self, "Centroid Coordinates", msg)
         else:
             # Fallback for other filters (e.g., background removal, grayscale, etc.)
@@ -362,6 +361,8 @@ class ImageProcessingApp(QMainWindow):
                 coord_msg += f"\nObject Centroid: ({obj_cx:.1f}, {obj_cy:.1f})"
             else:
                 coord_msg += "\nObject Centroid: Not available (no segmented object)"
+            if self.centroid_label:
+                self.centroid_label.setText(coord_msg.replace('\n', '; '))
             QMessageBox.information(self, "Centroid Coordinates", coord_msg)
 
     # ------------------- EVENT FILTER (crop) -------------------
@@ -522,8 +523,10 @@ class ImageProcessingApp(QMainWindow):
                 self.processed_status.setObjectName("status-badge-pending")
                 self.save_btn.setEnabled(False)
                 self.process_btn.setEnabled(True)
-                if hasattr(self, 'centroid_btn') and self.centroid_btn:
+                if self.centroid_btn:
                     self.centroid_btn.setEnabled(False)
+                if self.centroid_label:
+                    self.centroid_label.setText("Not computed")
                 self.update_histogram(self.original_image)
                 self.update_info_cards(image_info)
                 self.status_value.setText("Image Uploaded")
@@ -567,8 +570,10 @@ class ImageProcessingApp(QMainWindow):
             self.save_btn.setEnabled(True)
             self.update_histogram(processed)
             self.update_object_area(processed, "color_filter")
-            if hasattr(self, 'centroid_btn') and self.centroid_btn:
+            if self.centroid_btn:
                 self.centroid_btn.setEnabled(True)
+            if self.centroid_label:
+                self.centroid_label.setText("Click 'Show Centroid' to compute")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to apply filter: {str(e)}")
 
@@ -603,9 +608,11 @@ class ImageProcessingApp(QMainWindow):
             self.save_btn.setEnabled(True)
             self.process_btn.setEnabled(True)
             self.update_histogram(processed)
-            self.update_object_area(processed, self.current_filter)   # <-- update object area
-            if hasattr(self, 'centroid_btn') and self.centroid_btn:
+            self.update_object_area(processed, self.current_filter)
+            if self.centroid_btn:
                 self.centroid_btn.setEnabled(True)
+            if self.centroid_label:
+                self.centroid_label.setText("Click 'Show Centroid' to compute")
             crop_info = " (cropped)" if self.crop_applied else ""
             if self.current_filter == "custom_bw":
                 threshold = self.bw_threshold_slider.value()

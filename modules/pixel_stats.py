@@ -144,3 +144,42 @@ class PixelStats:
             'std': std,
             'total_pixels': total_pixels
         }
+    
+    @staticmethod
+    def get_centroid(image):
+        """
+        Compute the centroid (center of mass) of the image based on pixel intensities.
+        For RGB images, convert to grayscale first.
+        Returns (cx, cy) as floats, or None if total intensity is zero.
+        """
+        if image.mode not in ('L', 'RGB', 'RGBA'):
+            image = image.convert('L')
+        
+        # Convert to grayscale if needed
+        if image.mode != 'L':
+            from modules.grayscale_converter import GrayscaleConverter
+            converter = GrayscaleConverter()
+            gray = converter.convert_to_grayscale(image)
+        else:
+            gray = image
+        
+        pixels = gray.load()
+        w, h = gray.size
+        
+        total_intensity = 0
+        sum_x = 0.0
+        sum_y = 0.0
+        
+        for y in range(h):
+            for x in range(w):
+                intensity = pixels[x, y][0] if isinstance(pixels[x, y], tuple) else pixels[x, y]
+                total_intensity += intensity
+                sum_x += x * intensity
+                sum_y += y * intensity
+        
+        if total_intensity == 0:
+            return None
+        
+        cx = sum_x / total_intensity
+        cy = sum_y / total_intensity
+        return (cx, cy)
