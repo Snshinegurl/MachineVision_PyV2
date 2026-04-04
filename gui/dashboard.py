@@ -22,6 +22,7 @@ from modules.rotate_converter import ImageRotator
 from modules.mirror_converter import ImageMirror
 from modules.translate_converter import ImageTranslator
 from modules.object_boxer import ObjectBoxer
+from modules.convolution_filters import ConvolutionFilter   # NEW
 
 class ImageProcessingApp(QMainWindow):
     def __init__(self):
@@ -41,6 +42,7 @@ class ImageProcessingApp(QMainWindow):
         self.image_mirror = ImageMirror()
         self.image_translator = ImageTranslator()
         self.object_boxer = ObjectBoxer()
+        self.convolution_filter = ConvolutionFilter()      # NEW
         self.current_filter = "custom_grayscale"
         self.current_rotation_angle = 0
         self.current_mirror_type = "horizontal"
@@ -49,6 +51,8 @@ class ImageProcessingApp(QMainWindow):
         self.current_object_threshold = 128
         self.centroid_btn = None
         self.centroid_label = None
+        self.conv_filter_combo = None                     # NEW
+        self.conv_custom_input = None                     # NEW
         self.setup_ui()
         self.apply_styles()
 
@@ -100,7 +104,7 @@ class ImageProcessingApp(QMainWindow):
         from gui.ui_components.page_header import create_page_header
         widget = create_page_header()
         widget.findChild(QLabel, "page-title").setText("Advanced Image Processing Dashboard")
-        widget.findChild(QLabel, "page-subtitle").setText("Upload, crop, and apply filters including background removal, rotation, mirroring, translation, and object boxing")
+        widget.findChild(QLabel, "page-subtitle").setText("Upload, crop, and apply filters including background removal, rotation, mirroring, translation, object boxing, and convolution")
         return widget
 
     def create_status_bar(self):
@@ -122,7 +126,7 @@ class ImageProcessingApp(QMainWindow):
             self.processed_placeholder, self.processed_image_label,
             self.processed_status, self.save_btn, self.crop_btn, self.process_btn,
             self.bw_threshold_widget, self.rotation_widget, self.mirror_widget,
-            self.translation_widget, self.object_boxing_widget
+            self.translation_widget, self.object_boxing_widget, self.convolution_widget   # NEW
         ) = components
         self.add_crop_confirmation_controls(widget)
         self.original_image_label.installEventFilter(self)
@@ -178,7 +182,6 @@ class ImageProcessingApp(QMainWindow):
         widget, components = create_control_panel(self)
         self.filter_stack = components[0]
         self.filter_controls_stack = components[1]
-        # centroid_btn and centroid_label are already stored inside create_control_panel
         return widget
 
     def get_scrollbar_style(self):
@@ -213,7 +216,8 @@ class ImageProcessingApp(QMainWindow):
             4: "rotate",
             5: "mirror",
             6: "translate",
-            7: "object_boxing"
+            7: "object_boxing",
+            8: "convolution"                     # NEW
         }
         self.current_filter = filter_map.get(index, "custom_grayscale")
 
@@ -227,6 +231,8 @@ class ImageProcessingApp(QMainWindow):
             self.translation_widget.setVisible(self.current_filter == "translate")
         if hasattr(self, 'object_boxing_widget'):
             self.object_boxing_widget.setVisible(self.current_filter == "object_boxing")
+        if hasattr(self, 'convolution_widget'):          # NEW
+            self.convolution_widget.setVisible(self.current_filter == "convolution")
         if hasattr(self, 'filter_controls_stack'):
             self.filter_controls_stack.setVisible(index == 3)
             self.filter_controls_stack.setCurrentIndex(1 if index == 3 else 0)
@@ -260,6 +266,34 @@ class ImageProcessingApp(QMainWindow):
         self.current_object_threshold = value
         if hasattr(self, 'object_threshold_value_label'):
             self.object_threshold_value_label.setText(str(value))
+
+    # ------------------- CONVOLUTION HELPER -------------------
+    def get_current_convolution_kernel(self):
+        """Retrieve the selected kernel from the convolution widget."""
+        if not hasattr(self, 'conv_filter_combo') or self.conv_filter_combo is None:
+            return None
+        filter_name = self.conv_filter_combo.currentText()
+        if filter_name == "Smoothing (Average)":
+            return ConvolutionFilter.get_smoothing_kernel(3)
+        elif filter_name == "Gaussian Blur":
+            return ConvolutionFilter.get_gaussian_kernel(3, sigma=1.0)
+        elif filter_name == "Sharpening":
+            return ConvolutionFilter.get_sharpening_kernel()
+        elif filter_name == "Mean Removal (High-pass)":
+            return ConvolutionFilter.get_mean_removal_kernel()
+        elif filter_name == "Emboss":
+            return ConvolutionFilter.get_emboss_kernel()
+        elif filter_name == "Custom (3x3)":
+            if self.conv_custom_input:
+                kernel_str = self.conv_custom_input.text()
+                if kernel_str:
+                    try:
+                        return ConvolutionFilter.parse_custom_kernel(kernel_str)
+                    except Exception as e:
+                        QMessageBox.warning(self, "Invalid Kernel", f"Error parsing custom kernel: {str(e)}")
+                        return None
+            return None
+        return None
 
     def update_object_area(self, pil_image, filter_name):
         if pil_image is None:
@@ -316,7 +350,7 @@ class ImageProcessingApp(QMainWindow):
 
             msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})\n\nDetected Objects: {len(self.object_boxer.objects)}\n" + "\n".join(coord_msgs)
             if self.centroid_label:
-                self.centroid_label.setText(msg.replace('\n', '; ')[:100])  # show truncated in label
+                self.centroid_label.setText(msg.replace('\n', '; ')[:100])
             QMessageBox.information(self, "Centroid Coordinates", msg)
         else:
             # Fallback for other filters (e.g., background removal, grayscale, etc.)
@@ -638,6 +672,10 @@ class ImageProcessingApp(QMainWindow):
                 threshold = self.current_object_threshold
                 QMessageBox.information(self, "Success",
                     f"Objects detected and boxed successfully!\nDetection threshold: {threshold}\nBackground set to gray.")
+            elif self.current_filter == "convolution":                     # NEW
+                filter_name = self.conv_filter_combo.currentText() if self.conv_filter_combo else "Convolution"
+                QMessageBox.information(self, "Success",
+                    f"Image{crop_info} processed with {filter_name} filter.")
             else:
                 QMessageBox.information(self, "Success",
                     f"Image{crop_info} processed successfully using Grayscale filter!")
@@ -706,6 +744,11 @@ class ImageProcessingApp(QMainWindow):
             img, area = self.object_boxer.box_objects(image, threshold=self.current_object_threshold)
             self.object_boxer.object_area = area
             return img
+        elif filter_name == "convolution":                                 # NEW
+            kernel = self.get_current_convolution_kernel()
+            if kernel is None:
+                raise Exception("No valid convolution kernel selected or provided.")
+            return self.convolution_filter.apply_convolution(image, kernel, kernel_size=3)
         else:
             return self.grayscale_converter.convert_manual_loop(image)
 

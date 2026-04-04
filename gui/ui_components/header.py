@@ -134,6 +134,7 @@ def create_filter_navbar(app_instance):
     tab_bar.addTab("Mirror")
     tab_bar.addTab("Translate")          
     tab_bar.addTab("Object Boxing")   
+    tab_bar.addTab("Convolution")
     tab_bar.setExpanding(True)
     tab_bar.setStyleSheet("""
         QTabBar::tab {
