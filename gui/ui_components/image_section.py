@@ -308,46 +308,31 @@ def create_rotation_widget(app_instance):
     return widget
 
 def create_mirror_widget(app_instance):
-    """Create radio buttons for mirror direction (Horizontal/Vertical) aligned horizontally."""
+    """Create radio buttons for mirror direction (Horizontal/Vertical)."""
     widget = QWidget()
     widget.setObjectName("mirror-widget")
     layout = QVBoxLayout(widget)
-    layout.setContentsMargins(0, 8, 0, 8)
+    layout.setContentsMargins(0, 8, 0, 0)
     layout.setSpacing(8)
 
     label = QLabel("Mirror Direction:")
     label.setObjectName("threshold-label")
 
-    radio_container = QWidget()
-    radio_layout = QHBoxLayout(radio_container)
-    radio_layout.setContentsMargins(0, 0, 0, 0)
-    radio_layout.setSpacing(20)
-
     radio_h = QRadioButton("Horizontal")
     radio_v = QRadioButton("Vertical")
     radio_h.setChecked(True)
-    radio_h.setMinimumHeight(25)
-    radio_v.setMinimumHeight(25)
 
-    try:
-        from qtawesome import icon
-        radio_h.setIcon(icon('fa5s.arrows-alt-h', color='#4F46E5'))
-        radio_v.setIcon(icon('fa5s.arrows-alt-v', color='#4F46E5'))
-    except:
-        pass
-
-    radio_layout.addWidget(radio_h)
-    radio_layout.addWidget(radio_v)
-    radio_layout.addStretch()
-
+    # Store in app instance
     app_instance.mirror_horizontal_radio = radio_h
     app_instance.mirror_vertical_radio = radio_v
 
+    # Connect signals
     radio_h.toggled.connect(lambda: app_instance.on_mirror_direction_changed())
     radio_v.toggled.connect(lambda: app_instance.on_mirror_direction_changed())
 
     layout.addWidget(label)
-    layout.addWidget(radio_container)
+    layout.addWidget(radio_h)
+    layout.addWidget(radio_v)
 
     return widget
 

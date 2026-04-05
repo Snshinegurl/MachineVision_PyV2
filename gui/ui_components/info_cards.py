@@ -13,7 +13,7 @@ def create_file_info_cards():
     file_name_card = create_info_card("File Name", "No file", "blue", "file")
     file_size_card = create_info_card("File Size", "-", "green", "weight-hanging")
     dimensions_card = create_info_card("Dimensions", "-", "purple", "expand-alt")
-    pixels_card = create_info_card("Total Pixels", "-", "orange", "th-large")
+    pixels_card = create_info_card("Total Image Area", "-", "orange", "th-large")
     format_card = create_info_card("Format", "-", "red", "file-image")
     object_area_card = create_info_card("Object Area", "-", "cyan", "cube")  # new card
 

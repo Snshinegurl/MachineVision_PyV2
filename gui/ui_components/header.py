@@ -105,7 +105,7 @@ def create_user_info():
     user_info = QWidget()
     user_info_layout = QVBoxLayout(user_info)
     user_info_layout.setContentsMargins(0, 0, 0, 0)
-    user_info_layout.setSpacing(2)
+    user_info_layout.setSpacing(1)
 
     user_name = QLabel("Marc Jm Arabejo")
     user_name.setObjectName("user-name")

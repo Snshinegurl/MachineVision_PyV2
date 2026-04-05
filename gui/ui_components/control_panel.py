@@ -285,7 +285,6 @@ def create_control_panel(app_instance):
     except:
         centroid_btn.setText("🎯 Show Centroid")
     centroid_btn.clicked.connect(app_instance.show_centroids)
-    centroid_btn.setEnabled(False)
     centroid_layout.addWidget(centroid_label)
     centroid_layout.addWidget(centroid_value)
     centroid_layout.addWidget(centroid_btn)
