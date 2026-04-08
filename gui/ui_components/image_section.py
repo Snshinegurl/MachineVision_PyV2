@@ -9,7 +9,7 @@ def create_image_processing_section(app_instance):
     layout.setSpacing(24)
     layout.setContentsMargins(0, 0, 0, 0)
 
-    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget = create_image_card(
+    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, threshold_controls_widget = create_image_card(
         "Original Image", "file-upload", True, app_instance
     )
     processed_card, processed_placeholder, processed_image_label, processed_status, save_btn, process_btn = create_image_card(
@@ -24,7 +24,7 @@ def create_image_processing_section(app_instance):
         processed_placeholder, processed_image_label,
         processed_status, save_btn, crop_btn, process_btn,
         threshold_widget, rotation_widget, mirror_widget,
-        translation_widget, object_boxing_widget, range_threshold_widget
+        translation_widget, object_boxing_widget, threshold_controls_widget
     )
     return widget, components
 
@@ -36,13 +36,13 @@ def create_image_card(title, icon, is_original, app_instance):
     layout.setContentsMargins(0, 0, 0, 0)
 
     if is_original:
-        header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget = create_card_header(
+        header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, threshold_controls_widget = create_card_header(
             title, icon, is_original, app_instance
         )
         layout.addWidget(header)
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
-        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget
+        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, threshold_controls_widget
     else:
         header, processed_status, save_btn, process_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
@@ -72,22 +72,22 @@ def create_card_header(title, icon, is_original, app_instance):
         top_layout.addWidget(crop_btn)
         top_layout.addWidget(upload_btn)
 
-        # Threshold slider (for B&W) – initially hidden
+        # B&W threshold slider – initially hidden
         threshold_widget = create_threshold_widget(app_instance)
         threshold_widget.setVisible(False)
         app_instance.bw_threshold_widget = threshold_widget
 
-        # Rotation widget (for Rotate) – initially hidden
+        # Rotation widget – initially hidden
         rotation_widget = create_rotation_widget(app_instance)
         rotation_widget.setVisible(False)
         app_instance.rotation_widget = rotation_widget
 
-        # Mirror widget (for Mirror) – initially hidden
+        # Mirror widget – initially hidden
         mirror_widget = create_mirror_widget(app_instance)
         mirror_widget.setVisible(False)
         app_instance.mirror_widget = mirror_widget
 
-        # Translation widget (for Translate) – initially hidden
+        # Translation widget – initially hidden
         translation_widget = create_translation_widget(app_instance)
         translation_widget.setVisible(False)
         app_instance.translation_widget = translation_widget
@@ -97,10 +97,10 @@ def create_card_header(title, icon, is_original, app_instance):
         object_boxing_widget.setVisible(False)
         app_instance.object_boxing_widget = object_boxing_widget
 
-        # Range Threshold widget (for Threshold) – initially hidden
-        range_threshold_widget = create_range_threshold_widget(app_instance)
-        range_threshold_widget.setVisible(False)
-        app_instance.range_threshold_widget = range_threshold_widget
+        # NEW: Threshold controls (single / range / adaptive) – initially hidden
+        threshold_controls_widget = create_threshold_controls_widget(app_instance)
+        threshold_controls_widget.setVisible(False)
+        app_instance.threshold_controls_widget = threshold_controls_widget
 
         header_layout.addWidget(top_row)
         header_layout.addWidget(threshold_widget)
@@ -108,9 +108,9 @@ def create_card_header(title, icon, is_original, app_instance):
         header_layout.addWidget(mirror_widget)
         header_layout.addWidget(translation_widget)
         header_layout.addWidget(object_boxing_widget)
-        header_layout.addWidget(range_threshold_widget)
+        header_layout.addWidget(threshold_controls_widget)
 
-        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget
+        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, threshold_controls_widget
     else:
         right_widget, processed_status, save_btn, process_btn = create_processed_header_right(app_instance)
         top_layout.addWidget(right_widget)
@@ -426,51 +426,133 @@ def create_object_boxing_widget(app_instance):
 
     return widget
 
-def create_range_threshold_widget(app_instance):
-    """Create two spin boxes for T1 and T2 thresholds."""
+# ---------- NEW: Threshold Controls (Single / Range / Adaptive) ----------
+def create_threshold_controls_widget(app_instance):
     widget = QWidget()
-    widget.setObjectName("range-threshold-widget")
+    widget.setObjectName("threshold-controls-widget")
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 8, 0, 0)
     layout.setSpacing(8)
 
-    # Label
-    info_label = QLabel("Range Threshold (T1 ≤ pixel ≤ T2 → white)")
-    info_label.setObjectName("threshold-label")
+    # Type selection combo
+    type_label = QLabel("Threshold Type:")
+    type_label.setObjectName("threshold-label")
+    type_combo = QComboBox()
+    type_combo.addItems(["Single Threshold", "Range Threshold", "Adaptive Threshold"])
+    type_combo.currentIndexChanged.connect(app_instance.on_threshold_type_changed)
 
-    # T1 layout
+    # Stacked widget for different controls
+    controls_stack = QStackedWidget()
+
+    # Page 0: Single threshold (slider)
+    single_page = QWidget()
+    single_layout = QVBoxLayout(single_page)
+    single_layout.setContentsMargins(0, 0, 0, 0)
+
+    single_header = QWidget()
+    single_header_layout = QHBoxLayout(single_header)
+    single_header_layout.setContentsMargins(0, 0, 0, 0)
+    single_label = QLabel("Threshold value (T):")
+    single_label.setObjectName("threshold-label")
+    single_value_label = QLabel("128")
+    single_value_label.setObjectName("threshold-value-label")
+    single_header_layout.addWidget(single_label)
+    single_header_layout.addStretch()
+    single_header_layout.addWidget(single_value_label)
+
+    single_slider = QSlider(Qt.Horizontal)
+    single_slider.setObjectName("threshold-slider")
+    single_slider.setMinimum(0)
+    single_slider.setMaximum(255)
+    single_slider.setValue(128)
+    single_slider.setSingleStep(1)
+    single_slider.valueChanged.connect(lambda v: single_value_label.setText(str(v)))
+    single_slider.valueChanged.connect(app_instance.on_single_threshold_changed)
+
+    single_layout.addWidget(single_header)
+    single_layout.addWidget(single_slider)
+    controls_stack.addWidget(single_page)
+
+    # Page 1: Range threshold (T1, T2 spinboxes)
+    range_page = QWidget()
+    range_layout = QVBoxLayout(range_page)
+    range_layout.setContentsMargins(0, 0, 0, 0)
+    range_layout.setSpacing(8)
+
     t1_layout = QHBoxLayout()
-    t1_label = QLabel("Low threshold (T1):")
+    t1_label = QLabel("Low (T1):")
     t1_label.setObjectName("threshold-label")
     t1_spin = QSpinBox()
     t1_spin.setRange(0, 255)
     t1_spin.setValue(0)
-    t1_spin.setSuffix("")
     t1_layout.addWidget(t1_label)
     t1_layout.addWidget(t1_spin)
     t1_layout.addStretch()
 
-    # T2 layout
     t2_layout = QHBoxLayout()
-    t2_label = QLabel("High threshold (T2):")
+    t2_label = QLabel("High (T2):")
     t2_label.setObjectName("threshold-label")
     t2_spin = QSpinBox()
     t2_spin.setRange(0, 255)
     t2_spin.setValue(255)
-    t2_spin.setSuffix("")
     t2_layout.addWidget(t2_label)
     t2_layout.addWidget(t2_spin)
     t2_layout.addStretch()
 
-    layout.addWidget(info_label)
-    layout.addLayout(t1_layout)
-    layout.addLayout(t2_layout)
+    range_layout.addLayout(t1_layout)
+    range_layout.addLayout(t2_layout)
+    controls_stack.addWidget(range_page)
 
-    app_instance.range_threshold_t1_spin = t1_spin
-    app_instance.range_threshold_t2_spin = t2_spin
+    # Page 2: Adaptive threshold
+    adaptive_page = QWidget()
+    adaptive_layout = QVBoxLayout(adaptive_page)
+    adaptive_layout.setContentsMargins(0, 0, 0, 0)
+    adaptive_layout.setSpacing(8)
 
+    block_layout = QHBoxLayout()
+    block_label = QLabel("Block size (odd):")
+    block_label.setObjectName("threshold-label")
+    block_spin = QSpinBox()
+    block_spin.setRange(3, 31)
+    block_spin.setSingleStep(2)
+    block_spin.setValue(11)
+    block_spin.setToolTip("Must be odd (auto‑adjusted)")
+    block_layout.addWidget(block_label)
+    block_layout.addWidget(block_spin)
+    block_layout.addStretch()
+
+    c_layout = QHBoxLayout()
+    c_label = QLabel("Constant C (subtract):")
+    c_label.setObjectName("threshold-label")
+    c_spin = QSpinBox()
+    c_spin.setRange(0, 255)
+    c_spin.setValue(2)
+    c_layout.addWidget(c_label)
+    c_layout.addWidget(c_spin)
+    c_layout.addStretch()
+
+    adaptive_layout.addLayout(block_layout)
+    adaptive_layout.addLayout(c_layout)
+    controls_stack.addWidget(adaptive_page)
+
+    # Store references
+    app_instance.threshold_type_combo = type_combo
+    app_instance.threshold_controls_stack = controls_stack
+    app_instance.single_threshold_slider = single_slider
+    app_instance.range_t1_spin = t1_spin
+    app_instance.range_t2_spin = t2_spin
+    app_instance.adaptive_block_spin = block_spin
+    app_instance.adaptive_c_spin = c_spin
+
+    # Connect signals
     t1_spin.valueChanged.connect(lambda v: app_instance.on_range_threshold_changed())
     t2_spin.valueChanged.connect(lambda v: app_instance.on_range_threshold_changed())
+    block_spin.valueChanged.connect(lambda v: app_instance.on_adaptive_threshold_changed())
+    c_spin.valueChanged.connect(lambda v: app_instance.on_adaptive_threshold_changed())
+
+    layout.addWidget(type_label)
+    layout.addWidget(type_combo)
+    layout.addWidget(controls_stack)
 
     return widget
 
