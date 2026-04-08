@@ -9,7 +9,7 @@ class ObjectBoxer:
         self.object_area = 0
         self.objects = []
 
-    def box_objects(self, pil_image, threshold=128):
+    def box_objects(self, pil_image, threshold=128, include_full_image=False):
         # Use pixel_processor to get dimensions
         width, height, channels, total_pixels, mode = get_image_info(pil_image)
 
@@ -31,6 +31,16 @@ class ObjectBoxer:
 
         # Step 3: Connected component labeling (manual loops)
         objects = self._label_components(fg_mask)
+
+        # Optionally add the whole image as an object
+        if include_full_image:
+            full_object = {
+                'label': len(objects) + 1,
+                'bbox': (0, 0, width - 1, height - 1),
+                'centroid': (width / 2.0, height / 2.0),
+                'area': width * height
+            }
+            objects.append(full_object)
 
         total_object_pixels = sum(obj['area'] for obj in objects)
         self.object_area = total_object_pixels
@@ -57,7 +67,7 @@ class ObjectBoxer:
                 if fg_mask[y][x] == 1:
                     result_pixels[x, y] = original_pixels[x, y]
 
-        # Step 7: Draw bounding boxes
+        # Step 7: Draw bounding boxes for all objects
         for obj in objects:
             self._draw_box_manual(result, obj['bbox'], color=(255, 0, 0), thickness=2)
 

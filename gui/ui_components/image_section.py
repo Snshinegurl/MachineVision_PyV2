@@ -9,7 +9,7 @@ def create_image_processing_section(app_instance):
     layout.setSpacing(24)
     layout.setContentsMargins(0, 0, 0, 0)
 
-    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget = create_image_card(
+    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget = create_image_card(
         "Original Image", "file-upload", True, app_instance
     )
     processed_card, processed_placeholder, processed_image_label, processed_status, save_btn, process_btn = create_image_card(
@@ -24,7 +24,7 @@ def create_image_processing_section(app_instance):
         processed_placeholder, processed_image_label,
         processed_status, save_btn, crop_btn, process_btn,
         threshold_widget, rotation_widget, mirror_widget,
-        translation_widget, object_boxing_widget
+        translation_widget, object_boxing_widget, range_threshold_widget
     )
     return widget, components
 
@@ -36,13 +36,13 @@ def create_image_card(title, icon, is_original, app_instance):
     layout.setContentsMargins(0, 0, 0, 0)
 
     if is_original:
-        header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget = create_card_header(
+        header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget = create_card_header(
             title, icon, is_original, app_instance
         )
         layout.addWidget(header)
         display_area, placeholder, image_label = create_image_display_area(is_original, app_instance)
         layout.addWidget(display_area)
-        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget
+        return widget, placeholder, image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget
     else:
         header, processed_status, save_btn, process_btn = create_card_header(title, icon, is_original, app_instance)
         layout.addWidget(header)
@@ -97,14 +97,20 @@ def create_card_header(title, icon, is_original, app_instance):
         object_boxing_widget.setVisible(False)
         app_instance.object_boxing_widget = object_boxing_widget
 
+        # Range Threshold widget (for Threshold) – initially hidden
+        range_threshold_widget = create_range_threshold_widget(app_instance)
+        range_threshold_widget.setVisible(False)
+        app_instance.range_threshold_widget = range_threshold_widget
+
         header_layout.addWidget(top_row)
         header_layout.addWidget(threshold_widget)
         header_layout.addWidget(rotation_widget)
         header_layout.addWidget(mirror_widget)
         header_layout.addWidget(translation_widget)
         header_layout.addWidget(object_boxing_widget)
+        header_layout.addWidget(range_threshold_widget)
 
-        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget
+        return header, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, range_threshold_widget
     else:
         right_widget, processed_status, save_btn, process_btn = create_processed_header_right(app_instance)
         top_layout.addWidget(right_widget)
@@ -417,6 +423,54 @@ def create_object_boxing_widget(app_instance):
 
     app_instance.object_threshold_slider = threshold_slider
     app_instance.object_threshold_value_label = threshold_value_label
+
+    return widget
+
+def create_range_threshold_widget(app_instance):
+    """Create two spin boxes for T1 and T2 thresholds."""
+    widget = QWidget()
+    widget.setObjectName("range-threshold-widget")
+    layout = QVBoxLayout(widget)
+    layout.setContentsMargins(0, 8, 0, 0)
+    layout.setSpacing(8)
+
+    # Label
+    info_label = QLabel("Range Threshold (T1 ≤ pixel ≤ T2 → white)")
+    info_label.setObjectName("threshold-label")
+
+    # T1 layout
+    t1_layout = QHBoxLayout()
+    t1_label = QLabel("Low threshold (T1):")
+    t1_label.setObjectName("threshold-label")
+    t1_spin = QSpinBox()
+    t1_spin.setRange(0, 255)
+    t1_spin.setValue(0)
+    t1_spin.setSuffix("")
+    t1_layout.addWidget(t1_label)
+    t1_layout.addWidget(t1_spin)
+    t1_layout.addStretch()
+
+    # T2 layout
+    t2_layout = QHBoxLayout()
+    t2_label = QLabel("High threshold (T2):")
+    t2_label.setObjectName("threshold-label")
+    t2_spin = QSpinBox()
+    t2_spin.setRange(0, 255)
+    t2_spin.setValue(255)
+    t2_spin.setSuffix("")
+    t2_layout.addWidget(t2_label)
+    t2_layout.addWidget(t2_spin)
+    t2_layout.addStretch()
+
+    layout.addWidget(info_label)
+    layout.addLayout(t1_layout)
+    layout.addLayout(t2_layout)
+
+    app_instance.range_threshold_t1_spin = t1_spin
+    app_instance.range_threshold_t2_spin = t2_spin
+
+    t1_spin.valueChanged.connect(lambda v: app_instance.on_range_threshold_changed())
+    t2_spin.valueChanged.connect(lambda v: app_instance.on_range_threshold_changed())
 
     return widget
 

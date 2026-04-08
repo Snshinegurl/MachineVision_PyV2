@@ -49,7 +49,7 @@ def create_logo():
         eye_pixmap = eye_icon.pixmap(24, 24)
         logo_icon.setPixmap(eye_pixmap)
     except:
-        logo_icon.setText("👁️")
+        logo_icon.setText("")
 
     logo_text = QLabel("CPEP 323A")
     logo_text.setObjectName("logo-text")
@@ -135,6 +135,7 @@ def create_filter_navbar(app_instance):
     tab_bar.addTab("Translate")          
     tab_bar.addTab("Object Boxing")   
     tab_bar.addTab("Convolution")
+    tab_bar.addTab("Threshold")            # NEW
     tab_bar.setExpanding(True)
     tab_bar.setStyleSheet("""
         QTabBar::tab {

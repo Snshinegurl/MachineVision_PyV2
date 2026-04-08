@@ -39,33 +39,38 @@ class HistogramCanvas(FigureCanvas):
         self.axes.set_xlim(0, 255)
         self.draw()
 
-# ---------- Projection Widget ----------
+# ---------- Projection Widget (horizontal bars for row sums, vertical bars for col sums) ----------
 class ProjectionWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        self.fig_h = Figure(figsize=(3, 2.5), dpi=100, facecolor='#1F2937')
-        self.canvas_h = FigureCanvas(self.fig_h)
-        self.ax_h = self.fig_h.add_subplot(111)
+        layout.setSpacing(5)
+
+        # Single figure with two subplots
+        self.fig = Figure(figsize=(5, 4), dpi=100, facecolor='#1F2937')
+        self.canvas = FigureCanvas(self.fig)
+
+        # Top subplot: horizontal projection as HORIZONTAL bars (row index on Y, count on X)
+        self.ax_h = self.fig.add_subplot(2, 1, 1)
         self.ax_h.set_facecolor('#1F2937')
         self.ax_h.tick_params(colors='white')
-        self.ax_h.set_xlabel('Row Index', color='white')
-        self.ax_h.set_ylabel('White Pixel Count', color='white')
-        self.ax_h.set_title('Horizontal Projection', color='white')
-        self.ax_h.grid(True, linestyle='--', alpha=0.5, color='gray')
-        self.fig_v = Figure(figsize=(3, 2.5), dpi=100, facecolor='#1F2937')
-        self.canvas_v = FigureCanvas(self.fig_v)
-        self.ax_v = self.fig_v.add_subplot(111)
+        self.ax_h.set_xlabel('White Pixel Count', color='white')
+        self.ax_h.set_ylabel('Row Index', color='white')
+        self.ax_h.set_title('Horizontal Projection (Row Sums)', color='white')
+        self.ax_h.grid(True, linestyle='--', alpha=0.5, color='gray', axis='x')
+
+        # Bottom subplot: vertical projection as VERTICAL bars (column index on X, count on Y)
+        self.ax_v = self.fig.add_subplot(2, 1, 2)
         self.ax_v.set_facecolor('#1F2937')
         self.ax_v.tick_params(colors='white')
         self.ax_v.set_xlabel('Column Index', color='white')
         self.ax_v.set_ylabel('White Pixel Count', color='white')
-        self.ax_v.set_title('Vertical Projection', color='white')
-        self.ax_v.grid(True, linestyle='--', alpha=0.5, color='gray')
-        layout.addWidget(self.canvas_h)
-        layout.addWidget(self.canvas_v)
+        self.ax_v.set_title('Vertical Projection (Column Sums)', color='white')
+        self.ax_v.grid(True, linestyle='--', alpha=0.5, color='gray', axis='y')
+
+        self.fig.tight_layout()
+        layout.addWidget(self.canvas)
 
     def update_projections(self, binary_image):
         if binary_image is None:
@@ -76,6 +81,8 @@ class ProjectionWidget(QWidget):
         else:
             gray = binary_image
         pixels = gray.load()
+
+        # Row sums (horizontal projection)
         row_sums = [0] * height
         for y in range(height):
             total = 0
@@ -83,6 +90,8 @@ class ProjectionWidget(QWidget):
                 if pixels[x, y] >= 128:
                     total += 1
             row_sums[y] = total
+
+        # Column sums (vertical projection)
         col_sums = [0] * width
         for x in range(width):
             total = 0
@@ -90,26 +99,35 @@ class ProjectionWidget(QWidget):
                 if pixels[x, y] >= 128:
                     total += 1
             col_sums[x] = total
+
+        # ----- Update horizontal projection (HORIZONTAL bars) -----
         self.ax_h.clear()
         self.ax_h.set_facecolor('#1F2937')
         self.ax_h.tick_params(colors='white')
-        self.ax_h.set_xlabel('Row Index', color='white')
-        self.ax_h.set_ylabel('White Pixel Count', color='white')
-        self.ax_h.set_title('Horizontal Projection', color='white')
-        self.ax_h.grid(True, linestyle='--', alpha=0.5, color='gray')
-        self.ax_h.bar(range(height), row_sums, color='#4F46E5', alpha=0.7)
-        self.ax_h.set_xlim(0, height-1)
-        self.canvas_h.draw()
+        self.ax_h.set_xlabel('White Pixel Count', color='white')
+        self.ax_h.set_ylabel('Row Index', color='white')
+        self.ax_h.set_title('Horizontal Projection (Row Sums)', color='white')
+        self.ax_h.grid(True, linestyle='--', alpha=0.5, color='gray', axis='x')
+        # Use barh for horizontal bars: y = row indices, width = row_sums
+        rows = np.arange(height)
+        self.ax_h.barh(rows, row_sums, color='#4F46E5', alpha=0.7)
+        self.ax_h.set_ylim(height - 0.5, -0.5)  # invert so row 0 is at top (optional)
+        self.ax_h.set_xlim(0, max(row_sums) if row_sums else 1)
+
+        # ----- Update vertical projection (VERTICAL bars) -----
         self.ax_v.clear()
         self.ax_v.set_facecolor('#1F2937')
         self.ax_v.tick_params(colors='white')
         self.ax_v.set_xlabel('Column Index', color='white')
         self.ax_v.set_ylabel('White Pixel Count', color='white')
-        self.ax_v.set_title('Vertical Projection', color='white')
-        self.ax_v.grid(True, linestyle='--', alpha=0.5, color='gray')
-        self.ax_v.bar(range(width), col_sums, color='#10B981', alpha=0.7)
-        self.ax_v.set_xlim(0, width-1)
-        self.canvas_v.draw()
+        self.ax_v.set_title('Vertical Projection (Column Sums)', color='white')
+        self.ax_v.grid(True, linestyle='--', alpha=0.5, color='gray', axis='y')
+        cols = np.arange(width)
+        self.ax_v.bar(cols, col_sums, color='#10B981', alpha=0.7)
+        self.ax_v.set_xlim(-0.5, width - 0.5)
+        self.ax_v.set_ylim(0, max(col_sums) if col_sums else 1)
+
+        self.canvas.draw()
 
 # ---------- Convolution Controls ----------
 class ConvolutionControls(QWidget):
@@ -145,22 +163,10 @@ class ConvolutionControls(QWidget):
                 entry.setAlignment(Qt.AlignRight)
                 entry.setText("0.0")
                 entry.setFixedWidth(80)
-                entry.textChanged.connect(self.update_kernel_sum)
                 kernel_layout.addWidget(entry, i, j)
                 self.kernel_entries[i][j] = entry
 
-        # Default identity kernel
-        self.kernel_entries[0][0].setText("0.0")
-        self.kernel_entries[0][1].setText("0.0")
-        self.kernel_entries[0][2].setText("0.0")
-        self.kernel_entries[1][0].setText("0.0")
-        self.kernel_entries[1][1].setText("1.0")
-        self.kernel_entries[1][2].setText("0.0")
-        self.kernel_entries[2][0].setText("0.0")
-        self.kernel_entries[2][1].setText("0.0")
-        self.kernel_entries[2][2].setText("0.0")
-        layout.addWidget(self.kernel_group)
-
+        # Kernel sum display
         sum_layout = QHBoxLayout()
         sum_layout.addStretch()
         sum_label = QLabel("Kernel sum:")
@@ -172,8 +178,24 @@ class ConvolutionControls(QWidget):
         sum_layout.addStretch()
         layout.addLayout(sum_layout)
 
+        # Connect signals
+        for i in range(3):
+            for j in range(3):
+                self.kernel_entries[i][j].textChanged.connect(self.update_kernel_sum)
+
+        # Default identity kernel
+        self.kernel_entries[0][0].setText("0.0")
+        self.kernel_entries[0][1].setText("0.0")
+        self.kernel_entries[0][2].setText("0.0")
+        self.kernel_entries[1][0].setText("0.0")
+        self.kernel_entries[1][1].setText("1.0")
+        self.kernel_entries[1][2].setText("0.0")
+        self.kernel_entries[2][0].setText("0.0")
+        self.kernel_entries[2][1].setText("0.0")
+        self.kernel_entries[2][2].setText("0.0")
+
+        layout.addWidget(self.kernel_group)
         self.kernel_group.setEnabled(False)
-        self.update_kernel_sum()
         app_instance.conv_controls = self
 
     def on_preset_changed(self, text):
@@ -250,13 +272,13 @@ def create_control_panel(app_instance):
     header = create_panel_header()
     layout.addWidget(header)
 
-    # Controls stack: page 0 = empty, page 1 = color filter buttons, page 2 = convolution controls
+    # Controls stack
     controls_stack = QStackedWidget()
     controls_stack.setObjectName("filter-controls")
     controls_stack.addWidget(QWidget())  # empty
     controls_stack.addWidget(create_color_filter_buttons(app_instance))
     controls_stack.addWidget(ConvolutionControls(app_instance))
-    controls_stack.setVisible(False)   # initially hidden
+    controls_stack.setVisible(False)
     layout.addWidget(controls_stack)
 
     # Histogram, projection, centroid
