@@ -53,7 +53,7 @@ class ImageProcessingApp(QMainWindow):
         self.current_object_threshold = 128
 
         # Threshold variables
-        self.current_threshold_type = "single"   # "single", "range", "adaptive"
+        self.current_threshold_type = "single"
         self.current_single_t = 128
         self.current_range_t1 = 0
         self.current_range_t2 = 255
@@ -62,6 +62,11 @@ class ImageProcessingApp(QMainWindow):
 
         self.centroid_btn = None
         self.centroid_label = None
+
+        # For hover detection on processed image
+        self.processed_original_size = None
+        self.total_object_area = 0
+
         self.setup_ui()
         self.apply_styles()
 
@@ -80,7 +85,7 @@ class ImageProcessingApp(QMainWindow):
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll_area.setStyleSheet(self.get_scrollbar_style())
         self.setCentralWidget(scroll_area)
-        self.scroll_area = scroll_area  
+        self.scroll_area = scroll_area
         self.main_widget = central_widget
 
     def create_main_layout(self):
@@ -140,6 +145,8 @@ class ImageProcessingApp(QMainWindow):
         ) = components
         self.add_crop_confirmation_controls(widget)
         self.original_image_label.installEventFilter(self)
+        self.processed_image_label.setMouseTracking(True)
+        self.processed_image_label.installEventFilter(self)
         return widget
 
     def add_crop_confirmation_controls(self, parent_widget):
@@ -233,7 +240,6 @@ class ImageProcessingApp(QMainWindow):
         }
         self.current_filter = filter_map.get(index, "custom_grayscale")
 
-        # Show/hide specific control widgets in the original image panel
         if hasattr(self, 'bw_threshold_widget'):
             self.bw_threshold_widget.setVisible(self.current_filter == "custom_bw")
         if hasattr(self, 'rotation_widget'):
@@ -247,18 +253,16 @@ class ImageProcessingApp(QMainWindow):
         if hasattr(self, 'threshold_controls_widget'):
             self.threshold_controls_widget.setVisible(self.current_filter == "threshold")
 
-        # Show/hide the controls stack (color filter buttons / convolution panel)
         if hasattr(self, 'filter_controls_stack'):
-            if index == 3:                      # Color Filters tab
+            if index == 3:
                 self.filter_controls_stack.setCurrentIndex(1)
                 self.filter_controls_stack.setVisible(True)
-            elif index == 8:                    # Convolution tab
+            elif index == 8:
                 self.filter_controls_stack.setCurrentIndex(2)
                 self.filter_controls_stack.setVisible(True)
             else:
                 self.filter_controls_stack.setVisible(False)
 
-        # Enable/disable process button (disabled for color filters)
         if hasattr(self, 'process_btn'):
             self.process_btn.setEnabled(index != 3)
 
@@ -290,7 +294,6 @@ class ImageProcessingApp(QMainWindow):
         if hasattr(self, 'object_threshold_value_label'):
             self.object_threshold_value_label.setText(str(value))
 
-    # ---------- Threshold callbacks ----------
     def on_threshold_type_changed(self, index):
         if hasattr(self, 'threshold_controls_stack'):
             self.threshold_controls_stack.setCurrentIndex(index)
@@ -318,9 +321,6 @@ class ImageProcessingApp(QMainWindow):
             self.current_adaptive_block = block
             self.current_adaptive_c = self.adaptive_c_spin.value()
 
-    # ------------------------------------------------------------
-    # Convolution helper
-    # ------------------------------------------------------------
     def get_current_convolution_kernel(self):
         if not hasattr(self, 'conv_controls'):
             return None
@@ -354,13 +354,11 @@ class ImageProcessingApp(QMainWindow):
             if stats and 'opaque_pixels' in stats:
                 area = stats['opaque_pixels']
         elif filter_name == "object_boxing":
-            area = self.object_boxer.object_area
+            area = self.object_boxer.object_area   # this is now sum of real objects only
+        self.total_object_area = area
         if hasattr(self, 'object_area_card'):
             self.object_area_card.findChild(QLabel, "card-value").setText(f"{area:,}")
 
-    # ------------------------------------------------------------
-    # Centroid display
-    # ------------------------------------------------------------
     def show_centroids(self):
         if self.processed_image is None:
             QMessageBox.warning(self, "Warning", "No processed image available. Please process an image first.")
@@ -381,12 +379,14 @@ class ImageProcessingApp(QMainWindow):
             draw.line([(img_cx, img_cy - marker_size), (img_cx, img_cy + marker_size)], fill='red', width=line_width)
 
             coord_msgs = []
-            for i, obj in enumerate(self.object_boxer.objects):
+            for obj in self.object_boxer.objects:
+                if obj.get('is_full_image'):
+                    continue
                 cx, cy = obj['centroid']
                 draw.line([(cx - marker_size, cy), (cx + marker_size, cy)], fill='lime', width=line_width)
                 draw.line([(cx, cy - marker_size), (cx, cy + marker_size)], fill='lime', width=line_width)
                 draw.ellipse([cx-3, cy-3, cx+3, cy+3], fill='lime')
-                coord_msgs.append(f"Object {i+1}: ({cx:.1f}, {cy:.1f})")
+                coord_msgs.append(f"Object {obj['label']}: ({cx:.1f}, {cy:.1f})")
 
             byte_arr = io.BytesIO()
             img.save(byte_arr, format='PNG')
@@ -395,11 +395,12 @@ class ImageProcessingApp(QMainWindow):
             scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.processed_image_label.setPixmap(scaled_pixmap)
 
-            msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})\n\nDetected Objects: {len(self.object_boxer.objects)}\n" + "\n".join(coord_msgs)
+            msg = f"Image Centroid: ({img_cx:.1f}, {img_cy:.1f})\n\nDetected Objects: {len(coord_msgs)}\n" + "\n".join(coord_msgs)
             if self.centroid_label:
                 self.centroid_label.setText(msg.replace('\n', '; ')[:100])
             QMessageBox.information(self, "Centroid Coordinates", msg)
         else:
+            # fallback for other filters
             obj_cx, obj_cy = img_cx, img_cy
             has_object = False
             if img.mode == 'RGBA':
@@ -445,10 +446,8 @@ class ImageProcessingApp(QMainWindow):
                 self.centroid_label.setText(coord_msg.replace('\n', '; '))
             QMessageBox.information(self, "Centroid Coordinates", coord_msg)
 
-    # ------------------------------------------------------------
-    # Event filter for cropping
-    # ------------------------------------------------------------
     def eventFilter(self, obj, event):
+        # Crop handling
         if obj == self.original_image_label and self.is_cropping:
             if event.type() == QEvent.MouseButtonPress:
                 self.crop_start = event.pos()
@@ -489,6 +488,60 @@ class ImageProcessingApp(QMainWindow):
                         painter.drawRect(corner.x() - marker_size//2, corner.y() - marker_size//2,
                                          marker_size, marker_size)
                     return True
+
+        # Hover detection on processed image
+        if obj == self.processed_image_label:
+            if event.type() == QEvent.MouseMove:
+                if self.current_filter == "object_boxing" and self.processed_image is not None and self.object_boxer.objects:
+                    pos = event.pos()
+                    pixmap = self.processed_image_label.pixmap()
+                    if pixmap and self.processed_original_size:
+                        label_size = self.processed_image_label.size()
+                        pixmap_size = pixmap.size()
+                        offset_x = (label_size.width() - pixmap_size.width()) // 2
+                        offset_y = (label_size.height() - pixmap_size.height()) // 2
+                        px = pos.x() - offset_x
+                        py = pos.y() - offset_y
+                        if 0 <= px < pixmap_size.width() and 0 <= py < pixmap_size.height():
+                            orig_w, orig_h = self.processed_original_size
+                            scale_x = orig_w / pixmap_size.width()
+                            scale_y = orig_h / pixmap_size.height()
+                            orig_x = int(px * scale_x)
+                            orig_y = int(py * scale_y)
+                            found = False
+                            for obj_info in self.object_boxer.objects:
+                                if obj_info.get('is_full_image'):
+                                    continue   # skip the full-image bounding box
+                                x1, y1, x2, y2 = obj_info['bbox']
+                                if x1 <= orig_x <= x2 and y1 <= orig_y <= y2:
+                                    area = obj_info['area']
+                                    QToolTip.showText(event.globalPosition().toPoint(), f"Area: {area} pixels")
+                                    if hasattr(self, 'object_area_card'):
+                                        self.object_area_card.findChild(QLabel, "card-value").setText(f"{area:,}")
+                                    found = True
+                                    break
+                            if not found:
+                                QToolTip.hideText()
+                                if hasattr(self, 'object_area_card'):
+                                    self.object_area_card.findChild(QLabel, "card-value").setText(f"{self.total_object_area:,}")
+                        else:
+                            QToolTip.hideText()
+                            if hasattr(self, 'object_area_card'):
+                                self.object_area_card.findChild(QLabel, "card-value").setText(f"{self.total_object_area:,}")
+                    else:
+                        QToolTip.hideText()
+                        if hasattr(self, 'object_area_card'):
+                            self.object_area_card.findChild(QLabel, "card-value").setText(f"{self.total_object_area:,}")
+                else:
+                    QToolTip.hideText()
+                return True
+
+            elif event.type() == QEvent.Leave:
+                QToolTip.hideText()
+                if hasattr(self, 'object_area_card') and self.current_filter == "object_boxing":
+                    self.object_area_card.findChild(QLabel, "card-value").setText(f"{self.total_object_area:,}")
+                return True
+
         return super().eventFilter(obj, event)
 
     def start_cropping(self):
@@ -639,6 +692,7 @@ class ImageProcessingApp(QMainWindow):
         try:
             processed = filter_func(grayscale_img)
             self.processed_image = processed
+            self.processed_original_size = (processed.width, processed.height)
             byte_arr = io.BytesIO()
             processed.save(byte_arr, format='PNG')
             pixmap = QPixmap()
@@ -660,7 +714,6 @@ class ImageProcessingApp(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to apply filter: {str(e)}")
 
     def process_image(self):
-        # Store scroll position before processing
         if hasattr(self, 'scroll_area'):
             old_scroll = self.scroll_area.verticalScrollBar().value()
         else:
@@ -683,12 +736,12 @@ class ImageProcessingApp(QMainWindow):
         try:
             processed = self.apply_filter(image_to_process, self.current_filter)
             self.processed_image = processed
+            self.processed_original_size = (processed.width, processed.height)
 
             byte_arr = io.BytesIO()
             processed.save(byte_arr, format='PNG')
             pixmap = QPixmap()
             pixmap.loadFromData(byte_arr.getvalue())
-
             scaled_pixmap = pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.processed_image_label.setPixmap(scaled_pixmap)
             self.processed_placeholder.hide()
@@ -711,7 +764,6 @@ class ImageProcessingApp(QMainWindow):
 
             crop_info = " (cropped)" if self.crop_applied else ""
 
-            # Show success message (may cause layout shift)
             if self.current_filter == "custom_bw":
                 threshold = self.bw_threshold_slider.value()
                 QMessageBox.information(self, "Success",
@@ -764,8 +816,6 @@ class ImageProcessingApp(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to process image: {str(e)}")
 
         self.apply_styles()
-
-        # Restore scroll position after UI has settled
         if old_scroll is not None:
             QTimer.singleShot(50, lambda: self.scroll_area.verticalScrollBar().setValue(old_scroll))
 

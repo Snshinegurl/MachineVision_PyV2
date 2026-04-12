@@ -556,6 +556,35 @@ def create_threshold_controls_widget(app_instance):
 
     return widget
 
+def create_image_processing_section(app_instance):
+    widget = QWidget()
+    layout = QHBoxLayout(widget)
+    layout.setSpacing(24)
+    layout.setContentsMargins(0, 0, 0, 0)
+
+    original_card, original_placeholder, original_image_label, crop_btn, threshold_widget, rotation_widget, mirror_widget, translation_widget, object_boxing_widget, threshold_controls_widget = create_image_card(
+        "Original Image", "file-upload", True, app_instance
+    )
+    processed_card, processed_placeholder, processed_image_label, processed_status, save_btn, process_btn = create_image_card(
+        "Processed Image", "magic", False, app_instance
+    )
+
+    layout.addWidget(original_card)
+    layout.addWidget(processed_card)
+
+    # <-- ADD: Enable mouse tracking and install event filter for hover detection
+    processed_image_label.setMouseTracking(True)
+    processed_image_label.installEventFilter(app_instance)
+
+    components = (
+        original_placeholder, original_image_label,
+        processed_placeholder, processed_image_label,
+        processed_status, save_btn, crop_btn, process_btn,
+        threshold_widget, rotation_widget, mirror_widget,
+        translation_widget, object_boxing_widget, threshold_controls_widget
+    )
+    return widget, components
+
 def create_image_display_area(is_original, app_instance):
     display_area = QWidget()
     display_area.setObjectName("image-display-area")

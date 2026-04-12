@@ -32,18 +32,21 @@ class ObjectBoxer:
         # Step 3: Connected component labeling (manual loops)
         objects = self._label_components(fg_mask)
 
-        # Optionally add the whole image as an object
+        # Compute total area of real objects only
+        total_object_pixels = sum(obj['area'] for obj in objects)
+
+        # Optionally add the whole image as an object (for bounding box drawing)
         if include_full_image:
             full_object = {
                 'label': len(objects) + 1,
                 'bbox': (0, 0, width - 1, height - 1),
                 'centroid': (width / 2.0, height / 2.0),
-                'area': width * height
+                'area': width * height,
+                'is_full_image': True   # marker to skip in hover
             }
             objects.append(full_object)
 
-        total_object_pixels = sum(obj['area'] for obj in objects)
-        self.object_area = total_object_pixels
+        self.object_area = total_object_pixels   # store only real objects' area
         self.objects = objects
 
         # Step 4: Convert full image to grayscale
